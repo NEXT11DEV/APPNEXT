@@ -9,33 +9,28 @@ workflows:
         distribution_type: ad_hoc
         bundle_identifier: app.horizon9614.emerald5763
     scripts:
-      - name: Extract local signing project
-        script: |
-          set -e
-          mkdir -p local-signing
-          unzip -o APPNEXT-LocalSigning.zip -d local-signing
-          brew install xcodegen
-          cd local-signing
-          xcodegen generate
-      - name: Apply uploaded signing identities
-        script: |
-          cd local-signing
-          xcode-project use-profiles
-      - name: Build APPNEXT with local signer
-        script: |
-          cd local-signing
-          xcode-project build-ipa --project APPNEXT.xcodeproj --scheme APPNEXT
-      - name: Prepare IPA artifact
-        script: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import shutil
-          files = list(Path('local-signing/build/ios/ipa').glob('*.ipa'))
-          if len(files) != 1:
-              raise SystemExit('Expected exactly one exported IPA')
-          Path('artifacts').mkdir(exist_ok=True)
-          shutil.copyfile(files[0], 'artifacts/Next.ipa')
-          PY
+    - name: Extract local signing project
+      script: "set -e\nmkdir -p local-signing\nunzip -o APPNEXT-LocalSigning.zip -d local-signing\npython3 - <<'PYCODE'\n\
+        from pathlib import Path\npath = Path('local-signing/project.yml')\ntext = path.read_text()\nfor setting in ('CODE_SIGNING_ALLOWED',\
+        \ 'CODE_SIGNING_REQUIRED'):\n    old = setting + ': \"NO\"'\n    if old not in text:\n        raise SystemExit('Expected\
+        \ unsigned setting not found: ' + setting)\n    text = text.replace(old, setting + ': \"YES\"')\npath.write_text(text)\n\
+        PYCODE\nbrew install xcodegen\ncd local-signing\nxcodegen generate\n"
+    - name: Apply uploaded signing identities
+      script: 'set -e
+
+        cd local-signing
+
+        xcode-project use-profiles
+
+        '
+    - name: Build APPNEXT with local signer
+      script: "set -e\ncd local-signing\nxcode-project build-ipa --verbose \\\n  --project APPNEXT.xcodeproj --scheme APPNEXT\
+        \ \\\n  --archive-xcargs=\"COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES\" \\\n\
+        \  --export-options-plist=/Users/builder/export_options.plist\n"
+    - name: Prepare IPA artifact
+      script: "set -e\npython3 - <<'PY'\nfrom pathlib import Path\nimport shutil\nfiles = list(Path('local-signing/build/ios/ipa').glob('*.ipa'))\n\
+        if len(files) != 1:\n    raise SystemExit('Expected exactly one exported IPA')\nPath('artifacts').mkdir(exist_ok=True)\n\
+        shutil.copyfile(files[0], 'artifacts/Next.ipa')\nPY\n"
     artifacts:
-      - artifacts/Next.ipa
-      - /tmp/xcodebuild_logs/*.log
+    - artifacts/Next.ipa
+    - /tmp/xcodebuild_logs/*.log
