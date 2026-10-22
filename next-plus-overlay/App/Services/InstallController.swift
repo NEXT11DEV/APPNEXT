@@ -49,6 +49,9 @@ final class InstallController: ObservableObject {
                     throw NextFailure("فشل فحص نقل IPA داخل الجهاز. أعد المحاولة.")
                 }
                 var request = URLRequest(url: URL(string: server.remoteManifestURL)!)
+                // This public plist endpoint rejects unrecognized client signatures.
+                request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148", forHTTPHeaderField: "User-Agent")
+                request.setValue("application/xml,text/xml,*/*", forHTTPHeaderField: "Accept")
                 request.timeoutInterval = 20; request.cachePolicy = .reloadIgnoringLocalCacheData
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard (response as? HTTPURLResponse)?.statusCode == 200,

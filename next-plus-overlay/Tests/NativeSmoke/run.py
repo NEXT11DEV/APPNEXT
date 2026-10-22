@@ -49,6 +49,8 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
    assert 'resource.txt' in resources.get('files2',resources.get('files',{}))
    assert plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))['CFBundleIdentifier']=='app.nextplus.smoke'
    signed=z.read('Payload/Smoke.app/Smoke');assert b'\xfa\xde\x0c\xc0' in signed
+   verify=d/('verify-'+name);z.extractall(verify)
+  run(['/usr/bin/codesign','--verify','--deep','--strict','--verbose=2',verify/'Payload/Smoke.app'])
   print('PASS native bridge: '+name+' password IPA signing')
  assert sign('protected.p12','wrong','wrong.ipa').returncode!=0
  (d/'invalid.ipa').write_text('not an IPA')
