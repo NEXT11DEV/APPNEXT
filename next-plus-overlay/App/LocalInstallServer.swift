@@ -1,6 +1,5 @@
 import Foundation
 import Darwin
-import os
 
 /// Loopback transport for signed IPA files; HTTPS manifests use an external service.
 final class LocalInstallServer: @unchecked Sendable {
@@ -10,7 +9,17 @@ final class LocalInstallServer: @unchecked Sendable {
         var port: UInt16 = 0
     }
 
-    private let state = OSAllocatedUnfairLock(initialState: State())
+    /// NSLock is available on iOS 15; OSAllocatedUnfairLock requires iOS 16.
+    private final class LockedState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = State()
+        func withLock<T>(_ body: (inout State) -> T) -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            return body(&value)
+        }
+    }
+    private let state = LockedState()
 
     private var ipaURL: URL?
     private var bundleId = ""

@@ -30,3 +30,20 @@ Fixtures use disposable test certificates. Passing these tests demonstrates
 signing output correctness under the tested conditions, not Apple trust or actual
 installation on the user's iPhone. A physical-device test with their certificate
 and profile is still required.
+
+## iOS 15 and automatic installation (1.2.0)
+
+The active app targets iOS 15.0. Navigation uses NavigationView, IPA export uses
+UIActivityViewController, and activation uses TextEditor. Certificate, profile,
+and source forms use iOS 15 APIs. Legacy screens remain in source but are not
+compiled into the active app. The loopback server uses NSLock instead of the
+iOS-16-only OSAllocatedUnfairLock.
+
+After a successful signing output is validated and recorded in the library, the
+coordinator calls the existing installer automatically. Download, credential,
+archive, and signing failures do not request installation. iOS confirmation is
+still required. Signed files remain available for retry and sharing.
+
+The packaging test checks the actual Info.plist and native Mach-O deployment
+versions. This is a deployment/availability check, not a physical iOS 15 device
+test. The current CI simulator runtime may be newer than iOS 15.

@@ -31,10 +31,10 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  (d/'profile.plist').write_bytes(plistlib.dumps(profile))
  cmd('cms','-sign','-binary','-nodetach','-in',d/'profile.plist','-signer',d/'leaf.pem','-inkey',d/'leaf.key','-outform','DER','-out',d/'test.mobileprovision')
  app=d/'Payload/Smoke.app';app.mkdir(parents=True)
- (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='app.nextplus.smoke',CFBundleExecutable='Smoke',CFBundleName='Smoke',CFBundleVersion='1',CFBundleShortVersionString='1.0',CFBundlePackageType='APPL',MinimumOSVersion='16.4')))
+ (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='app.nextplus.smoke',CFBundleExecutable='Smoke',CFBundleName='Smoke',CFBundleVersion='1',CFBundleShortVersionString='1.0',CFBundlePackageType='APPL',MinimumOSVersion='15.0')))
  (d/'main.c').write_text('int main(void) { return 0; }\n')
  sdk=subprocess.check_output(['xcrun','--sdk','iphoneos','--show-sdk-path'],text=True).strip()
- run(['xcrun','clang','-target','arm64-apple-ios16.4','-isysroot',sdk,d/'main.c','-o',app/'Smoke'])
+ run(['xcrun','clang','-target','arm64-apple-ios15.0','-isysroot',sdk,d/'main.c','-o',app/'Smoke'])
  (app/'resource.txt').write_text('NEXT signing test resource')
  with zipfile.ZipFile(d/'input.ipa','w',zipfile.ZIP_DEFLATED) as z:
   for p in (d/'Payload').rglob('*'):

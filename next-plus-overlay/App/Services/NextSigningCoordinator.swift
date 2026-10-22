@@ -106,8 +106,9 @@ final class NextSigningCoordinator: ObservableObject {
                 title = inspection.appName
                 history.append(inputName: inspection.appName, outputName: output.lastPathComponent,
                                bundleId: result.signedBundleId, version: result.signedVersion, certificateCN: certificate.commonName)
-                phase = .ready; detail = "تم التوقيع. اضغط «تثبيت النسخة الموقّعة» لإرسالها إلى iOS."
+                phase = .ready; detail = "تم التوقيع. جاري فتح طلب التثبيت؛ وافق على نافذة iOS عند ظهورها."
                 record("نجح التوقيع؛ النسخة محفوظة في المكتبة")
+                installSigned()
             } catch is CancellationError {
                 try? FileManager.default.removeItem(at: output)
                 phase = .idle; detail = "تم إلغاء العملية."; record("إلغاء العملية")

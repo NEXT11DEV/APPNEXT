@@ -59,6 +59,7 @@ struct NextWorkspace: View {
             library.tabItem { Label("المكتبة", systemImage: "square.stack.3d.up.fill") }.tag(1)
             settings.tabItem { Label("الإعدادات", systemImage: "slider.horizontal.3") }.tag(2)
         }
+        .navigationViewStyle(StackNavigationViewStyle())
         .tint(NextStyle.purple)
         .sheet(isPresented: $showSources) { SourcesView() }
         .sheet(isPresented: $showCertificates) { CertificatesSheet() }
@@ -71,7 +72,7 @@ struct NextWorkspace: View {
             } onCancel: { showImporter = false }
         }
         .sheet(isPresented: $signing.needsPassword, onDismiss: { password = "" }) {
-            NavigationStack {
+            NavigationView {
                 Form {
                     Section {
                         Text("أدخل كلمة مرور شهادة P12 المختارة. اتركها فارغة إذا الشهادة بدون كلمة مرور.")
@@ -81,7 +82,7 @@ struct NextWorkspace: View {
                 }
                 .navigationTitle("كلمة مرور الشهادة")
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { signing.cancelPassword() } } }
-            }.presentationDetents([.medium])
+            }.navigationViewStyle(StackNavigationViewStyle())
         }
         .alert("تعذر إكمال العملية", isPresented: Binding(get: { signing.error != nil }, set: { if !$0 { signing.error = nil } })) {
             Button("إعداد الشهادة") { tab = 2 }
@@ -90,17 +91,20 @@ struct NextWorkspace: View {
     }
 
     private var store: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack(spacing: 13) {
                         Image("NextPlusIcon").resizable().scaledToFit().frame(width: 52, height: 52)
                             .clipShape(RoundedRectangle(cornerRadius: 15))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("NEXT PlUS").font(.system(size: 26, weight: .heavy, design: .rounded))
+                            Text("NEXT PlUS").font(.system(size: 26, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.75)
                             Text("مساحتك للتطبيقات").font(.subheadline).foregroundStyle(.secondary)
                         }
                         Spacer()
+                        Button { Task { await refresh() } } label: {
+                            Image(systemName: "arrow.clockwise").font(.headline).frame(width: 36, height: 42)
+                        }.accessibilityLabel("تحديث التطبيقات").disabled(repositories.loadingRepoID != nil)
                         Button { showSources = true } label: {
                             Image(systemName: "plus").font(.title3.bold()).frame(width: 42, height: 42)
                                 .background(NextStyle.card, in: Circle())
@@ -143,7 +147,7 @@ struct NextWorkspace: View {
                     }
                 }.padding(20).padding(.bottom, 20)
             }
-            .background(NextStyle.page).toolbar(.hidden, for: .navigationBar)
+            .background(NextStyle.page).navigationBarHidden(true)
             .refreshable { await refresh() }
             .task {
                 guard !refreshed else { return }; refreshed = true
@@ -183,15 +187,15 @@ struct NextWorkspace: View {
                 signing.start(.repository(app))
                 if signing.busy { tab = 1 }
             } label: {
-                Image(systemName: "arrow.down").font(.system(size: 17, weight: .bold))
-                    .frame(width: 44, height: 44).background(NextStyle.purple.opacity(0.11), in: Circle())
+                Text("تثبيت").font(.system(size: 13, weight: .bold))
+                    .frame(width: 72, height: 36).background(NextStyle.purple.opacity(0.11), in: Circle())
             }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
                 .accessibilityLabel("تنزيل وتوقيع \(app.name)")
         }.padding(14).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private var library: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Button { showImporter = true } label: {
@@ -203,7 +207,7 @@ struct NextWorkspace: View {
                             }
                             Spacer(); Image(systemName: "plus")
                         }.foregroundStyle(.white).padding(22)
-                            .background(NextStyle.purple.gradient, in: RoundedRectangle(cornerRadius: 22))
+                            .background(LinearGradient(colors: [NextStyle.purple.opacity(0.8), NextStyle.purple], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 22))
                     }.buttonStyle(.plain).disabled(signing.busy)
                     if signing.phase != .idle { operationCard }
                     if !installer.installStatus.isEmpty {
@@ -234,7 +238,7 @@ struct NextWorkspace: View {
                             HStack {
                                 Button("تثبيت") { installer.install(ipa: history.outputURL(for: record), bundleId: record.bundleId, version: record.version, title: record.inputName) }
                                     .buttonStyle(.borderedProminent).disabled(!history.fileExists(for: record) || signing.busy)
-                                if history.fileExists(for: record) { ShareLink(item: history.outputURL(for: record)) { Label("مشاركة IPA", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered) }
+                                if history.fileExists(for: record) { NextShareButton(item: history.outputURL(for: record)) { Label("مشاركة IPA", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered) }
                             }
                         }.padding(18).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
                     }
@@ -259,7 +263,7 @@ struct NextWorkspace: View {
             }
             if signing.phase == .ready {
                 Button("تثبيت النسخة الموقّعة") { signing.installSigned() }.buttonStyle(.borderedProminent)
-                if let url = signing.signedURL { ShareLink(item: url) { Label("تصدير IPA الموقّع", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered) }
+                if let url = signing.signedURL { NextShareButton(item: url) { Label("تصدير IPA الموقّع", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered) }
             }
             if let notice = signing.signingNotice {
                 DisclosureGroup("معلومات ملف التوقيع") {
@@ -273,14 +277,14 @@ struct NextWorkspace: View {
     }
 
     private var settings: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 Section {
                     HStack(spacing: 15) {
                         Image("NextPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("NEXT PlUS").font(.title2.bold())
-                            Text("1.1.2").font(.caption.monospaced()).foregroundStyle(.secondary)
+                            Text("1.2.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
@@ -291,7 +295,7 @@ struct NextWorkspace: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("معرّف ملف التوقيع").font(.caption)
                             Text(profile.applicationIdentifier ?? "غير موجود في الملف")
-                                .font(.caption.monospaced()).textSelection(.enabled)
+                                .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                                 .environment(\.layoutDirection, .leftToRight)
                             Text("نحافظ على معرّف كل تطبيق ونستخدم بيانات ملف التوقيع كما هي.").font(.caption)
                         }.foregroundStyle(.secondary)
@@ -330,9 +334,9 @@ private struct NextSubscriptionDetails: View {
     @EnvironmentObject private var access: NextLicenseStore
     var body: some View {
         if let license = access.license {
-            LabeledContent("الاسم", value: license.name)
-            LabeledContent("انتهاء الاشتراك") { Text(Date(timeIntervalSince1970: TimeInterval(license.expires)), style: .date) }
+            HStack { Text("الاسم"); Spacer(); Text(license.name).foregroundStyle(.secondary) }
+            HStack { Text("انتهاء الاشتراك"); Spacer(); Text(Date(timeIntervalSince1970: TimeInterval(license.expires)), style: .date).foregroundStyle(.secondary) }
         }
-        Text(access.installationID).font(.caption.monospaced()).textSelection(.enabled)
+        Text(access.installationID).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
     }
 }

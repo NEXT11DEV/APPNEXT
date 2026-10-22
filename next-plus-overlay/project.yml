@@ -2,13 +2,13 @@ name: NextPlus
 options:
   bundleIdPrefix: app.nextplus
   deploymentTarget:
-    iOS: "16.4"
+    iOS: "15.0"
   createIntermediateGroups: true
 
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    IPHONEOS_DEPLOYMENT_TARGET: "16.4"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
     DEVELOPMENT_TEAM: ""
     CODE_SIGNING_ALLOWED: "NO"
     CODE_SIGNING_REQUIRED: "NO"
@@ -22,6 +22,21 @@ targets:
     platform: iOS
     sources:
       - path: App
+        excludes:
+          - "ContentView.swift"
+          - "Views/ImportApplicationSheet.swift"
+          - "Views/AboutView.swift"
+          - "Views/UpdatesSheet.swift"
+          - "Views/DylibInjectionSection.swift"
+          - "Views/LibraryView.swift"
+          - "Views/AppsView.swift"
+          - "Views/AppImportSheets.swift"
+          - "Views/IPAPreflightCard.swift"
+          - "Design/ForgeBackdrop.swift"
+          - "Design/DesignTokens.swift"
+          - "Design/GlassEffects.swift"
+          - "Design/ForgeGlassLogo.swift"
+          - "Design/ForgeComponents.swift"
       - path: Bridge
       - path: vendor/zsign
         excludes:
@@ -70,6 +85,21 @@ targets:
     platform: iOS
     sources:
       - path: App
+        excludes:
+          - "ContentView.swift"
+          - "Views/ImportApplicationSheet.swift"
+          - "Views/AboutView.swift"
+          - "Views/UpdatesSheet.swift"
+          - "Views/DylibInjectionSection.swift"
+          - "Views/LibraryView.swift"
+          - "Views/AppsView.swift"
+          - "Views/AppImportSheets.swift"
+          - "Views/IPAPreflightCard.swift"
+          - "Design/ForgeBackdrop.swift"
+          - "Design/DesignTokens.swift"
+          - "Design/GlassEffects.swift"
+          - "Design/ForgeGlassLogo.swift"
+          - "Design/ForgeComponents.swift"
     resources:
       - path: App/Resources
     settings:

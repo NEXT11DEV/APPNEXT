@@ -23,7 +23,7 @@ struct NextAccessGate<Content: View>: View {
             if access.license != nil || previewEnabled {
                 content.environmentObject(access)
             } else {
-                NavigationStack {
+                NavigationView {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
                             Image("NextPlusIcon").resizable().scaledToFit()
@@ -48,8 +48,8 @@ struct NextAccessGate<Content: View>: View {
                             .padding().background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("كود التفعيل").font(.headline)
-                                TextField("NP1.…", text: $code, axis: .vertical)
-                                    .lineLimit(3...6)
+                                TextEditor(text: $code)
+                                    .frame(minHeight: 100, maxHeight: 140)
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
                                     .font(.system(.footnote, design: .monospaced))
@@ -70,6 +70,7 @@ struct NextAccessGate<Content: View>: View {
                     .frame(maxWidth: .infinity)
                     .background(Color(.systemGroupedBackground))
                 }
+                .navigationViewStyle(StackNavigationViewStyle())
                 .environment(\.layoutDirection, .rightToLeft)
             }
         }
