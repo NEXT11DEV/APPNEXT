@@ -1,0 +1,14 @@
+build/
+DerivedData/
+*.xcodeproj/
+xcuserdata/
+.DS_Store
+App/Config.swift
+__pycache__/
+# Keep owner signing keys out of the public source repository.
+*private-key*
+*.p12
+*.mobileprovision
+*.pem
+*.key
+owner-private/

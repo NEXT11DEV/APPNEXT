@@ -1,0 +1,56 @@
+name: Build NEXT PlUS IPA
+on:
+  push:
+    branches: [next-plus-build]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: next-plus-build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Assemble pinned iStore engine and NEXT PlUS source
+        run: |
+          set -euo pipefail
+          git init build-source
+          git -C build-source remote add origin https://github.com/hggdet/iStore-iOS.git
+          git -C build-source fetch --depth 1 origin fdefea2617b27374dbb79de9b23f05a728cdbe3b
+          git -C build-source checkout --detach FETCH_HEAD
+          cp -R next-plus-overlay/. build-source/
+      - name: Verify Xcode and generate project
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          xcodegen generate
+      - name: Compile NEXT PlUS
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          xcodebuild -project NextPlus.xcodeproj -scheme iStore \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath build/NextPlus.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' archive
+      - name: Package unsigned IPA
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          mkdir -p build/ipa/Payload
+          cp -R build/NextPlus.xcarchive/Products/Applications/NextPlus.app build/ipa/Payload/
+          cd build/ipa
+          /usr/bin/zip -qry ../NEXT-PlUS-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEXT-PlUS-unsigned-IPA
+          path: build-source/build/NEXT-PlUS-unsigned.ipa
+          retention-days: 7
+          if-no-files-found: error
