@@ -37,10 +37,20 @@ struct NextWorkspace: View {
 
     private var apps: [RepoApp] {
         var seen = Set<String>()
-        return repositories.repositories.flatMap { repositories.catalog[$0.id]?.apps ?? [] }
-            .filter { seen.insert($0.id).inserted }
-            .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
-            .filter { category == "الكل" || (category == "ألعاب" ? ($0.category?.lowercased().contains("game") == true || $0.category?.contains("ألعاب") == true) : !($0.category?.lowercased().contains("game") == true || $0.category?.contains("ألعاب") == true)) }
+        var result: [RepoApp] = []
+        for repository in repositories.repositories {
+            guard let catalog = repositories.catalog[repository.id] else { continue }
+            for app in catalog.apps {
+                guard seen.insert(app.id).inserted else { continue }
+                if !query.isEmpty && !app.name.localizedCaseInsensitiveContains(query) { continue }
+                let appCategory = app.category ?? ""
+                let isGame = appCategory.lowercased().contains("game") || appCategory.contains("ألعاب")
+                if category == "ألعاب" && !isGame { continue }
+                if category == "تطبيقات" && isGame { continue }
+                result.append(app)
+            }
+        }
+        return result
     }
 
     var body: some View {

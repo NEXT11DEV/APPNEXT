@@ -37,6 +37,12 @@ jobs:
           set -euo pipefail
           swiftc -swift-version 6 App/Services/NextSigningPolicy.swift App/LocalInstallServer.swift Tests/Transport/Checks.swift -o /tmp/next-transport-tests
           /tmp/next-transport-tests
+      - name: Exercise native zsign bridge with disposable fixtures
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          if ! brew --prefix openssl@3 >/dev/null 2>&1; then brew install openssl@3; fi
+          python3 Tests/NativeSmoke/run.py
       - name: Compile NEXT PlUS
         working-directory: build-source
         run: |
