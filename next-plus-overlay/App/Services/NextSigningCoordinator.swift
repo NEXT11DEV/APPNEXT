@@ -14,6 +14,7 @@ final class NextSigningCoordinator: ObservableObject {
     @Published private(set) var signedBundle = ""
     @Published private(set) var signedVersion = ""
     @Published private(set) var log: [String] = []
+    @Published private(set) var signingNotice: String?
     let certificates: CertificateStore
     let profiles: ProfileStore
     let history: HistoryStore
@@ -32,7 +33,7 @@ final class NextSigningCoordinator: ObservableObject {
 
     func start(_ request: Request, password: String? = nil) {
         guard !busy else { return }
-        error = nil
+        error = nil; signingNotice = nil
         if let message = NextSigningPolicy.credentials(certificateExpiry: certificates.selected?.notAfter,
             profileExpiry: profiles.selected?.notAfter, certificateTeam: certificates.selected?.teamID,
             profileTeam: profiles.selected?.teamID) { fail(message); return }
@@ -83,8 +84,11 @@ final class NextSigningCoordinator: ObservableObject {
                     try IPAPreflightService.inspect(ipa: ipa, temporaryDirectory: work).get()
                 }.value
                 guard inspection.encryptedExecutableCount == 0 else { throw NextFailure("التطبيق مشفّر من App Store؛ إعادة التوقيع وحدها لا تكفي لتثبيته.") }
-                if let issue = NextSigningPolicy.profileIssue(bundleID: inspection.bundleIdentifier,
-                    applicationIdentifier: profile.applicationIdentifier) { throw NextFailure(issue) }
+                if let notice = NextSigningPolicy.profileNotice(bundleID: inspection.bundleIdentifier,
+                    applicationIdentifier: profile.applicationIdentifier) {
+                    signingNotice = notice
+                    record(notice)
+                }
                 try Task.checkCancellation()
                 phase = .signing; detail = "توقيع التطبيق داخل الآيفون…"; record("بدء محرك zsign")
                 let result = await Task.detached(priority: .userInitiated) {

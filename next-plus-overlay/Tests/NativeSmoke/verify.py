@@ -1,7 +1,7 @@
 """Verify executable hashes and CMS mathematics without asserting Apple trust.
 Disposable test certificates are deliberately not Apple-issued identities.
 """
-import hashlib,pathlib,struct,subprocess
+import hashlib,pathlib,plistlib,struct,subprocess
 
 def verify(app,openssl,scratch):
  binary=(app/'Smoke').read_bytes()
@@ -30,7 +30,12 @@ def verify(app,openssl,scratch):
  for slot,path in [(1,app/'Info.plist'),(3,app/'_CodeSignature/CodeResources')]:
   assert special>=slot
   assert digest(path.read_bytes()).digest()[:hash_size]==cd[hash_offset-slot*hash_size:hash_offset-(slot-1)*hash_size], 'Resource seal mismatch'
+ for slot in [2,5,7]:
+  if slot in slots:
+   assert special>=slot
+   assert digest(slots[slot]).digest()[:hash_size]==cd[hash_offset-slot*hash_size:hash_offset-(slot-1)*hash_size], 'Signed entitlement/requirement seal mismatch'
  (scratch/'cd.bin').write_bytes(cd);(scratch/'cms.der').write_bytes(slots[0x10000][8:])
  subprocess.run([str(openssl),'cms','-verify','-inform','DER','-in',str(scratch/'cms.der'),'-content',str(scratch/'cd.bin'),'-binary','-noverify','-out',str(scratch/'verified.bin')],check=True)
  assert (scratch/'verified.bin').read_bytes()==cd
  print('PASS: executable page hashes, Info.plist/resource seal, and cryptographic CMS signature (Apple trust not asserted)')
+ return plistlib.loads(slots[5][8:])

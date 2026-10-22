@@ -22,18 +22,21 @@ enum NextSigningPolicy {
         return pattern.isEmpty ? nil : pattern
     }
 
-    static func allows(bundleID: String, applicationIdentifier: String?) -> Bool {
+    static func identifierMatches(bundleID: String, applicationIdentifier: String?) -> Bool {
         guard let pattern = applicationPattern(applicationIdentifier) else { return false }
         let escaped = NSRegularExpression.escapedPattern(for: pattern).replacingOccurrences(of: "\\*", with: ".*")
         return bundleID.range(of: "^" + escaped + "$", options: .regularExpression) != nil
     }
 
-    static func profileIssue(bundleID: String, applicationIdentifier: String?) -> String? {
-        guard let pattern = applicationPattern(applicationIdentifier) else {
-            return "تعذر قراءة معرّف التطبيقات المسموح به من ملف provisioning المختار. أعد استيراد ملف صالح مطابق لشهادة P12."
+    /// Informational only. The profile's signing identity and the app bundle
+    /// identifier are separate inputs to zsign; their textual mismatch alone
+    /// must not block an otherwise valid signing attempt.
+    static func profileNotice(bundleID: String, applicationIdentifier: String?) -> String? {
+        guard applicationPattern(applicationIdentifier) != nil else {
+            return "تعذر عرض معرّف ملف التوقيع. سيتحقق محرك التوقيع من الملف نفسه."
         }
-        guard !allows(bundleID: bundleID, applicationIdentifier: applicationIdentifier) else { return nil }
-        return "ملف provisioning المختار مقيّد بمعرّف مختلف.\nمعرّف التطبيق: \(bundleID)\nالمسموح بملف التوقيع: \(pattern)\nاختَر ملفًا مطابقًا لشهادة P12 يسمح بهذا التطبيق، أو ملف wildcard يسمح بعدة تطبيقات. تغيير المصدر أو كود الاشتراك لا يغيّر صلاحيات الملف."
+        guard !identifierMatches(bundleID: bundleID, applicationIdentifier: applicationIdentifier) else { return nil }
+        return "معرّف التطبيق: \(bundleID)\nمعرّف ملف التوقيع: \(applicationIdentifier ?? "")\nسيُستخدم ملف التوقيع كما هو مع الحفاظ على معرّف التطبيق. اختلاف المعرّفين وحده لا يمنع محاولة التوقيع؛ قبول التثبيت يحدده iOS."
     }
 
     static func byteRange(_ value: String?, size: UInt64) -> (start: UInt64, end: UInt64)? {

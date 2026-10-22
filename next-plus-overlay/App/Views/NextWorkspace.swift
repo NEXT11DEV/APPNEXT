@@ -261,6 +261,11 @@ struct NextWorkspace: View {
                 Button("تثبيت النسخة الموقّعة") { signing.installSigned() }.buttonStyle(.borderedProminent)
                 if let url = signing.signedURL { ShareLink(item: url) { Label("تصدير IPA الموقّع", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered) }
             }
+            if let notice = signing.signingNotice {
+                DisclosureGroup("معلومات ملف التوقيع") {
+                    Text(notice).font(.caption).textSelection(.enabled)
+                }.font(.caption)
+            }
             DisclosureGroup("تفاصيل العملية") {
                 Text(signing.log.joined(separator: "\n")).font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             }.font(.caption)
@@ -275,7 +280,7 @@ struct NextWorkspace: View {
                         Image("NextPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("NEXT PlUS").font(.title2.bold())
-                            Text("1.1.1").font(.caption.monospaced()).foregroundStyle(.secondary)
+                            Text("1.1.2").font(.caption.monospaced()).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
@@ -284,11 +289,11 @@ struct NextWorkspace: View {
                     Button { showProfiles = true } label: { settingRow("ملف provisioning", value: profiles.selected?.displayName ?? "أضف ملف الحماية", icon: "doc.badge.gearshape.fill") }
                     if let profile = profiles.selected {
                         VStack(alignment: .leading, spacing: 5) {
-                            Text("معرّف التطبيقات المسموح به").font(.caption)
+                            Text("معرّف ملف التوقيع").font(.caption)
                             Text(profile.applicationIdentifier ?? "غير موجود في الملف")
                                 .font(.caption.monospaced()).textSelection(.enabled)
                                 .environment(\.layoutDirection, .leftToRight)
-                            Text("* يعني السماح بعدة معرّفات ضمن النطاق المحدد.").font(.caption)
+                            Text("نحافظ على معرّف كل تطبيق ونستخدم بيانات ملف التوقيع كما هي.").font(.caption)
                         }.foregroundStyle(.secondary)
                     }
                     Text("اختَر الشهادة وملفها المتطابقين. التطبيق يقبل الشهادات بدون كلمة مرور أيضًا.").font(.footnote).foregroundStyle(.secondary)

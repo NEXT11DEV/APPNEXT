@@ -53,6 +53,39 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
    verify=d/('verify-'+name);z.extractall(verify)
   verify_signature(verify/'Payload/Smoke.app',openssl,d)
   print('PASS native bridge: '+name+' password IPA signing')
+ # Regression: same explicit profile, two distinct app identifiers. The signer
+ # must retain each app's identifier and the original profile/entitlements.
+ # This mirrors the signed structure observed in the user-provided Zsign IPA;
+ # it makes no assertion about Apple's acceptance on a physical device.
+ exact_id='NEXTTEST01.app.horizon9614.emerald5763'
+ profile['Entitlements']['application-identifier']=exact_id
+ (d/'profile.plist').write_bytes(plistlib.dumps(profile))
+ cmd('cms','-sign','-binary','-nodetach','-in',d/'profile.plist','-signer',d/'leaf.pem','-inkey',d/'leaf.key','-outform','DER','-out',d/'test.mobileprovision')
+ original_profile=(d/'test.mobileprovision').read_bytes()
+ identifiers=['com.gitswift.SwiftServer','com.suversal.wrappin']
+ outputs=[]
+ for index,bundle in enumerate(identifiers):
+  info=plistlib.loads((app/'Info.plist').read_bytes());info['CFBundleIdentifier']=bundle
+  (app/'Info.plist').write_bytes(plistlib.dumps(info))
+  source='explicit-input-'+str(index)+'.ipa'
+  with zipfile.ZipFile(d/source,'w',zipfile.ZIP_DEFLATED) as z:
+   for file in (d/'Payload').rglob('*'):
+    if file.is_file():z.write(file,file.relative_to(d))
+  original_input=(d/source).read_bytes()
+  output='explicit-output-'+str(index)+'.ipa'
+  assert sign('protected.p12','test-only',output,source).returncode==0
+  assert (d/source).read_bytes()==original_input
+  with zipfile.ZipFile(d/output) as z:
+   signed_id=plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))['CFBundleIdentifier']
+   assert signed_id==bundle
+   assert z.read('Payload/Smoke.app/embedded.mobileprovision')==original_profile
+   extracted=d/('explicit-verify-'+str(index));z.extractall(extracted)
+  entitlements=verify_signature(extracted/'Payload/Smoke.app',openssl,d)
+  assert entitlements['application-identifier']==exact_id
+  assert entitlements['com.apple.developer.team-identifier']=='NEXTTEST01'
+  outputs.append(signed_id)
+ assert len(set(outputs))==2
+ print('PASS native compatibility: two distinct bundle IDs, same explicit profile; profile bytes and signing application-identifier preserved')
  assert sign('protected.p12','wrong','wrong.ipa').returncode!=0
  (d/'invalid.ipa').write_text('not an IPA')
  assert sign('empty.p12','','invalid-output.ipa','invalid.ipa').returncode!=0
