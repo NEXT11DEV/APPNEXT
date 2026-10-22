@@ -49,7 +49,7 @@
 ارفع محتويات هذا المصدر فقط إلى مستودع تتحكم به. لا ترفع حزمة OWNER-PRIVATE.
 داخل المستودع افتح Actions، ثم Build NEXT PlUS IPA، ثم Run workflow.
 الملف الناتج يوجد ضمن Artifacts باسم NEXT-PlUS-unsigned-IPA.
-يعتمد المسار على runner macos-26 وأدوات Xcode وXcodeGen.
+يعتمد المسار على runner macOS وأدوات Xcode وXcodeGen.
 
 GitHub يستخدم هنا لبناء التطبيق فقط، وليس كسيرفر توقيع للمشتركين. يمكن استعمال
 runner قياسي على مستودع عام وفق خطة GitHub وحدود حسابك. لا تتضمن عملية البناء
