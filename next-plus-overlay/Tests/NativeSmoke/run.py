@@ -2,6 +2,7 @@
 This validates archive/signature generation, not acceptance by a physical iPhone.
 """
 import datetime, os, pathlib, plistlib, shutil, struct, subprocess, tempfile, zipfile
+from verify import verify as verify_signature
 root=pathlib.Path.cwd()
 def run(args, **kwargs): return subprocess.run([str(x) for x in args], check=True, **kwargs)
 ssl=pathlib.Path(subprocess.check_output(['brew','--prefix','openssl@3'],text=True).strip())
@@ -50,7 +51,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
    assert plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))['CFBundleIdentifier']=='app.nextplus.smoke'
    signed=z.read('Payload/Smoke.app/Smoke');assert b'\xfa\xde\x0c\xc0' in signed
    verify=d/('verify-'+name);z.extractall(verify)
-  run(['/usr/bin/codesign','--verify','--deep','--strict','--verbose=2',verify/'Payload/Smoke.app'])
+  verify_signature(verify/'Payload/Smoke.app',openssl,d)
   print('PASS native bridge: '+name+' password IPA signing')
  assert sign('protected.p12','wrong','wrong.ipa').returncode!=0
  (d/'invalid.ipa').write_text('not an IPA')
