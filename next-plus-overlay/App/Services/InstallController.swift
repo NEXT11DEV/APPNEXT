@@ -2,142 +2,90 @@ import Foundation
 import SwiftUI
 import UIKit
 
-/// Owns the semi-local OTA install flow (local HTTP IPA + remote HTTPS
-/// plist via `api.palera.in`). Opens `itms-services` directly for a seamless
-/// install prompt (1.0 behaviour); Safari is the fallback only.
+/// Keeps signed files independent of the temporary iOS installation handoff.
 @MainActor
 final class InstallController: ObservableObject {
     @Published var installServer: LocalInstallServer?
     @Published var installStatus = ""
-
     private var installTask: Task<Void, Never>?
     private var installGeneration = UUID()
-
-    /// Called when the currently served IPA has been fully downloaded.
     var onDelivered: (() -> Void)?
 
-    func install(ipa: URL, bundleId: String, version: String, title: String = "NEXT PlUS") {
-        installTask?.cancel()
-        installServer?.stop()
-        installServer = nil
+    func cancel() {
+        installGeneration = UUID()
+        installTask?.cancel(); installTask = nil
+        installServer?.stop(); installServer = nil
         InstallKeepAlive.shared.stop()
+        installStatus = "تم إيقاف طلب التثبيت. ملف IPA الموقّع يبقى محفوظًا."
+    }
 
-        let generation = UUID()
-        installGeneration = generation
-        installStatus = "Starting install server…"
-
-        // Keep the app (and its local server) alive while the iOS installer
-        // downloads. A background task alone only buys ~30 seconds; silent
-        // audio playback holds the `audio` background mode for large IPAs.
-        var bgTask: UIBackgroundTaskIdentifier = .invalid
-        bgTask = UIApplication.shared.beginBackgroundTask(withName: "forgesign.install") {
-            UIApplication.shared.endBackgroundTask(bgTask)
-            bgTask = .invalid
-        }
-        InstallKeepAlive.shared.start()
-
+    func install(ipa: URL, bundleId: String, version: String, title: String = "NEXT PlUS") {
+        cancel()
+        let generation = UUID(); installGeneration = generation
+        installStatus = "التحقق من ملف IPA وخدمة التثبيت…"
         installTask = Task { [weak self] in
             guard let self else { return }
-            defer {
-                if bgTask != .invalid {
-                    UIApplication.shared.endBackgroundTask(bgTask)
-                    bgTask = .invalid
-                }
-                if self.installGeneration == generation {
-                    self.installTask = nil
-                }
-            }
             do {
-                guard self.installGeneration == generation, !Task.isCancelled else { return }
+                guard FileManager.default.fileExists(atPath: ipa.path) else {
+                    throw NextFailure("الملف الموقّع غير موجود. أعد توقيع التطبيق.")
+                }
                 let server = LocalInstallServer()
-                _ = try await server.start(ipa: ipa, bundleId: bundleId,
-                                           bundleVersion: version,
-                                           title: title)
-                guard self.installGeneration == generation, !Task.isCancelled else {
-                    server.stop()
-                    return
-                }
+                _ = try await server.start(ipa: ipa, bundleId: bundleId, bundleVersion: version, title: title)
+                guard installGeneration == generation, !Task.isCancelled else { server.stop(); return }
                 installServer = server
-                    server.onIPADelivered = { [weak self] in
-                        Task { @MainActor in
-                            guard let self, self.installGeneration == generation else { return }
-                            CleanupManager.shared.markIPAForPostInstallDeletion(ipa)
-                            self.installStatus = "IPA delivered. Installing… accept the iOS prompt if shown."
-                            InstallKeepAlive.shared.stop()
-                            self.onDelivered?()
-                    }
-                }
-
-                // Confirm the local IPA endpoint answers before handing off.
-                let health = URL(string: "\(server.installBaseURL)/health")!
-                let (_, healthResp) = try await URLSession.shared.data(from: health)
-                guard (healthResp as? HTTPURLResponse)?.statusCode == 200 else {
-                    throw NSError(domain: "forgesign.install", code: 1,
-                                  userInfo: [NSLocalizedDescriptionKey: "Local install server failed self-check."])
-                }
-
-                // Do not fetch the remote plist here before opening the handoff.
-                // That duplicated the request iOS immediately makes itself and
-                // added avoidable latency before the install prompt appeared.
-                // Validate the URL shape locally, then let iOS resolve it once.
-                guard URL(string: server.remoteManifestURL) != nil else {
-                    throw NSError(domain: "forgesign.install", code: 2,
-                                  userInfo: [NSLocalizedDescriptionKey: "Bad remote manifest URL."])
-                }
-
-                // Open itms-services immediately after the local endpoint is ready.
-                // iOS resolves the trusted remote HTTPS manifest itself; Safari is
-                // only a fallback if the direct open is gated.
-                guard let itmsURL = URL(string: server.itmsServicesURL) else {
-                    throw NSError(domain: "forgesign.install", code: 4,
-                                  userInfo: [NSLocalizedDescriptionKey: "Bad itms-services URL."])
-                }
-                installStatus = "Triggering installer…"
-                UIApplication.shared.open(itmsURL) { [weak self] opened in
+                server.onIPADelivered = { [weak self] in
                     Task { @MainActor in
-                        guard let self else { return }
-                        if opened {
-                            self.installStatus = "Install prompted. Accept the iOS dialog and keep the app open."
-                        } else {
-                            self.installStatus = "Direct open gated — opening Safari install page…"
-                            if let page = URL(string: "\(server.installBaseURL)/install") {
-                                UIApplication.shared.open(page) { [weak self] pageOpened in
-                                    guard !pageOpened else { return }
-                                    Task { @MainActor in
-                                        guard let self, self.installGeneration == generation else { return }
-                                        self.installStatus = "Install failed: iOS could not open the installation page."
-                                        self.installServer?.stop()
-                                        self.installServer = nil
-                                        InstallKeepAlive.shared.stop()
-                                    }
-                                }
-                            } else {
-                                self.installStatus = "Install failed: iOS could not open the installation page."
-                                self.installServer?.stop()
-                                self.installServer = nil
-                                InstallKeepAlive.shared.stop()
-                            }
-                        }
+                        guard let self, self.installGeneration == generation else { return }
+                        self.installStatus = "استلم iOS ملف التطبيق. راقب التثبيت على الشاشة الرئيسية؛ استلام الملف لا يؤكد قبول الشهادة."
+                        self.onDelivered?()
                     }
                 }
-
-                try? await Task.sleep(nanoseconds: 30 * 60 * 1_000_000_000)
-                guard self.installGeneration == generation, !Task.isCancelled else { return }
+                var health = URLRequest(url: URL(string: server.payloadURL)!)
+                health.httpMethod = "HEAD"; health.timeoutInterval = 10
+                let (_, localResponse) = try await URLSession.shared.data(for: health)
+                let expected = (try ipa.resourceValues(forKeys: [.fileSizeKey])).fileSize ?? 0
+                guard let local = localResponse as? HTTPURLResponse, local.statusCode == 200,
+                      local.value(forHTTPHeaderField: "Content-Length") == String(expected) else {
+                    throw NextFailure("فشل فحص نقل IPA داخل الجهاز. أعد المحاولة.")
+                }
+                var request = URLRequest(url: URL(string: server.remoteManifestURL)!)
+                request.timeoutInterval = 20; request.cachePolicy = .reloadIgnoringLocalCacheData
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard (response as? HTTPURLResponse)?.statusCode == 200,
+                      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+                      let items = plist["items"] as? [[String: Any]],
+                      let item = items.first,
+                      let metadata = item["metadata"] as? [String: Any],
+                      metadata["bundle-identifier"] as? String == bundleId,
+                      let assets = item["assets"] as? [[String: Any]],
+                      assets.contains(where: { $0["kind"] as? String == "software-package" && $0["url"] as? String == server.payloadURL }) else {
+                    throw NextFailure("خدمة رابط التثبيت لم ترجع ملف manifest صالحًا. التوقيع محفوظ: صدّر IPA أو حاول لاحقًا.")
+                }
+                try Task.checkCancellation()
+                guard installGeneration == generation else { return }
+                guard let url = URL(string: server.itmsServicesURL) else { throw NextFailure("رابط التثبيت غير صالح.") }
+                InstallKeepAlive.shared.start()
+                installStatus = "أُرسل طلب التثبيت إلى iOS. وافق على النافذة إن ظهرت وأبقِ NEXT PlUS مفتوحًا أثناء النقل."
+                let opened = await UIApplication.shared.open(url, options: [:])
+                guard opened else { throw NextFailure("iOS لم يفتح طلب التثبيت. يمكنك تصدير IPA الموقّع.") }
+                try await Task.sleep(nanoseconds: 10 * 60 * 1_000_000_000)
+                guard installGeneration == generation else { return }
+                installStatus = "انتهت مهلة نقل التثبيت. ملف IPA الموقّع محفوظ ويمكن إعادة الطلب."
+                installServer?.stop(); installServer = nil; InstallKeepAlive.shared.stop()
+                installTask = nil
             } catch {
-                guard self.installGeneration == generation, !Task.isCancelled else { return }
-                installStatus = "Install failed: \(error.localizedDescription)"
-                installServer?.stop()
-                installServer = nil
-                InstallKeepAlive.shared.stop()
+                guard installGeneration == generation, !Task.isCancelled else { return }
+                installStatus = "تعذر التثبيت: \(error.localizedDescription)\nالنسخة الموقّعة تبقى في المكتبة للتصدير أو إعادة المحاولة."
+                installServer?.stop(); installServer = nil; InstallKeepAlive.shared.stop(); installTask = nil
             }
         }
     }
 
-    /// Re-opens the local HTTP install page in Safari.
     func openInstallPage() {
-        guard let server = installServer else { return }
-        guard let page = URL(string: "\(server.installBaseURL)/install") else { return }
-        installStatus = "Opening install page in Safari…"
-        UIApplication.shared.open(page)
+        guard let server = installServer, let url = URL(string: server.itmsServicesURL) else {
+            installStatus = "اضغط تثبيت بجانب النسخة الموقّعة لبدء طلب جديد."
+            return
+        }
+        UIApplication.shared.open(url)
     }
 }

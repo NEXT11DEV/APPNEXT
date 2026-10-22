@@ -2,18 +2,7 @@ import Foundation
 import Darwin
 import os
 
-/// Local OTA install server (semi-local, Feather-style).
-///
-/// `itms-services` requires an HTTPS manifest URL that iOS trusts. The public
-/// `*.backloop.dev` leaf is now issued under Let's Encrypt YR1 / ISRG Root YR,
-/// which Apple's trust store does not include — Safari shows "This Connection
-/// Is Not Private". Instead we:
-///
-/// 1. Serve the IPA over plain HTTP on `127.0.0.1` (loopback; no cert needed).
-/// 2. Point `itms-services` at a remote HTTPS plist from `api.palera.in`
-///    (`genPlist`) whose `software-package` URL is our local IPA.
-///
-/// Same approach Feather uses for its "semi-local" / server-method-1 install.
+/// Loopback transport for signed IPA files; HTTPS manifests use an external service.
 final class LocalInstallServer: @unchecked Sendable {
     private struct State {
         var listenerFD: Int32 = -1
@@ -124,7 +113,7 @@ final class LocalInstallServer: @unchecked Sendable {
             state.listenerFD = -1
             return fd
         }
-        if fd >= 0 { close(fd) }
+        if fd >= 0 { shutdown(fd, SHUT_RDWR); close(fd) }
     }
 
     // MARK: Accept loop
@@ -136,7 +125,8 @@ final class LocalInstallServer: @unchecked Sendable {
 
             let client = accept(fd, nil, nil)
             if client >= 0 {
-                handleConnection(client)
+                let worker = Thread { [weak self] in self?.handleConnection(client) }
+                worker.start()
             } else {
                 Thread.sleep(forTimeInterval: 0.05)
             }
@@ -145,6 +135,11 @@ final class LocalInstallServer: @unchecked Sendable {
 
     private func handleConnection(_ fd: Int32) {
         defer { close(fd) }
+        var noSigPipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        var timeout = timeval(tv_sec: 30, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
 
         var buffer = Data()
         var raw = [UInt8](repeating: 0, count: 4096)
@@ -166,9 +161,15 @@ final class LocalInstallServer: @unchecked Sendable {
         let path = parts.count > 1 ? parts[1] : "/"
         let headOnly = method == "HEAD"
 
-        if path.hasPrefix("/app.ipa") {
+        guard method == "GET" || method == "HEAD" else {
+            sendResponse(fd, status: "405 Method Not Allowed", contentType: "text/plain", body: Data(), headOnly: true)
+            return
+        }
+        let range = lines.dropFirst().first { $0.lowercased().hasPrefix("range:") }
+            .map { String($0.dropFirst(6)).trimmingCharacters(in: .whitespaces) }
+        if path == "/app.ipa" {
             if let ipa = ipaURL, FileManager.default.fileExists(atPath: ipa.path) {
-                sendFile(fd, url: ipa, headOnly: headOnly)
+                sendFile(fd, url: ipa, headOnly: headOnly, rangeHeader: range)
             } else {
                 sendResponse(fd, status: "404 Not Found", contentType: "text/plain",
                              body: Data("not found".utf8), headOnly: false)
@@ -187,15 +188,18 @@ final class LocalInstallServer: @unchecked Sendable {
 
     var onIPADelivered: (() -> Void)?
 
-    private func sendAll(_ fd: Int32, _ data: Data) {
-        var sent = 0
+    @discardableResult
+    private func sendAll(_ fd: Int32, _ data: Data) -> Bool {
         data.withUnsafeBytes { raw in
-            guard let base = raw.baseAddress else { return }
+            guard let base = raw.baseAddress else { return true }
+            var sent = 0
             while sent < data.count {
                 let n = send(fd, base.advanced(by: sent), data.count - sent, 0)
-                if n <= 0 { return }
+                if n < 0 && errno == EINTR { continue }
+                if n <= 0 { return false }
                 sent += n
             }
+            return true
         }
     }
 
@@ -209,29 +213,32 @@ final class LocalInstallServer: @unchecked Sendable {
         sendAll(fd, response)
     }
 
-    private func sendFile(_ fd: Int32, url: URL, headOnly: Bool) {
+    private func sendFile(_ fd: Int32, url: URL, headOnly: Bool, rangeHeader: String?) {
         guard let handle = try? FileHandle(forReadingFrom: url) else {
-            sendResponse(fd, status: "404 Not Found", contentType: "text/plain", body: Data(), headOnly: false)
+            sendResponse(fd, status: "404 Not Found", contentType: "text/plain", body: Data(), headOnly: true)
             return
         }
-        let fileSize = handle.seekToEndOfFile()
-        handle.seek(toFileOffset: 0)
-        var header = "HTTP/1.1 200 OK\r\n"
-        header += "Content-Type: application/octet-stream\r\n"
-        header += "Content-Length: \(fileSize)\r\n"
+        defer { try? handle.close() }
+        let size = handle.seekToEndOfFile()
+        guard let range = NextSigningPolicy.byteRange(rangeHeader, size: size) else {
+            sendAll(fd, Data("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */\(size)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8))
+            return
+        }
+        let length = range.end - range.start + 1
+        var header = "HTTP/1.1 \(rangeHeader == nil ? "200 OK" : "206 Partial Content")\r\n"
+        header += "Content-Type: application/octet-stream\r\nContent-Length: \(length)\r\nAccept-Ranges: bytes\r\n"
+        if rangeHeader != nil { header += "Content-Range: bytes \(range.start)-\(range.end)/\(size)\r\n" }
         header += "Connection: close\r\n\r\n"
-        sendAll(fd, Data(header.utf8))
-        if headOnly {
-            try? handle.close()
-            return
+        guard sendAll(fd, Data(header.utf8)), !headOnly else { return }
+        handle.seek(toFileOffset: range.start)
+        var remaining = length
+        while remaining > 0 {
+            guard state.withLock({ $0.running }) else { return }
+            let chunk = handle.readData(ofLength: Int(min(remaining, 1024 * 1024)))
+            guard !chunk.isEmpty, sendAll(fd, chunk) else { return }
+            remaining -= UInt64(chunk.count)
         }
-        while true {
-            let chunk = handle.readData(ofLength: 1024 * 1024)
-            if chunk.isEmpty { break }
-            sendAll(fd, chunk)
-        }
-        try? handle.close()
-        onIPADelivered?()
+        if range.start == 0 && length == size { onIPADelivered?() }
     }
 
     /// Safari-facing page. Redirects into itms-services with the *remote*

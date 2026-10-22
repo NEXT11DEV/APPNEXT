@@ -10,17 +10,24 @@ struct NextAccessGate<Content: View>: View {
 
     init(@ViewBuilder content: () -> Content) { self.content = content() }
 
+    private var previewEnabled: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["NEXT_UI_PREVIEW"] == "1"
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         Group {
-            if access.license != nil {
+            if access.license != nil || previewEnabled {
                 content.environmentObject(access)
             } else {
                 NavigationStack {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-                            Image(systemName: "arrow.up.right.square.fill")
-                                .font(.system(size: 64))
-                                .foregroundStyle(Color.cyan)
+                            Image("NextPlusIcon").resizable().scaledToFit()
+                                .frame(width: 86, height: 86).clipShape(RoundedRectangle(cornerRadius: 23))
                                 .padding(.top, 38)
                             Text("NEXT PlUS")
                                 .font(.system(size: 38, weight: .black, design: .rounded))
