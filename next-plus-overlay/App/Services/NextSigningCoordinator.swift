@@ -83,9 +83,8 @@ final class NextSigningCoordinator: ObservableObject {
                     try IPAPreflightService.inspect(ipa: ipa, temporaryDirectory: work).get()
                 }.value
                 guard inspection.encryptedExecutableCount == 0 else { throw NextFailure("التطبيق مشفّر من App Store؛ إعادة التوقيع وحدها لا تكفي لتثبيته.") }
-                guard NextSigningPolicy.allows(bundleID: inspection.bundleIdentifier, applicationIdentifier: profile.applicationIdentifier) else {
-                    throw NextFailure("ملف provisioning لا يسمح بمعرّف التطبيق \(inspection.bundleIdentifier). تحتاج ملفًا يسمح بهذا التطبيق.")
-                }
+                if let issue = NextSigningPolicy.profileIssue(bundleID: inspection.bundleIdentifier,
+                    applicationIdentifier: profile.applicationIdentifier) { throw NextFailure(issue) }
                 try Task.checkCancellation()
                 phase = .signing; detail = "توقيع التطبيق داخل الآيفون…"; record("بدء محرك zsign")
                 let result = await Task.detached(priority: .userInitiated) {

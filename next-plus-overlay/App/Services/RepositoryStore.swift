@@ -236,35 +236,7 @@ final class RepositoryStore: ObservableObject {
     // MARK: Default sources
 
     private func seedDefaultRepositories() {
-        // NEXT PlUS starts with the owner's sources rather than third-party defaults.
-        let defaults: [(String, String)] = []
-        let migrationKey = "nextplus.sources.initialized.v1"
-        if !UserDefaults.standard.bool(forKey: migrationKey) {
-            repositories.removeAll()
-            for (rawURL, name) in defaults {
-                if let url = URL(string: rawURL) {
-                    repositories.append(Repository(url: url, name: name))
-                }
-            }
-            UserDefaults.standard.set(true, forKey: migrationKey)
-            save()
-            return
-        }
-        var changed = false
-        let sourceCountBeforeCleanup = repositories.count
-        repositories.removeAll { repo in
-            repo.name == "FastSign" ||
-            repo.name == "Alan's Gigantic Repo" ||
-            repo.url.absoluteString == "https://fastsign.dev/repo.json"
-        }
-        changed = repositories.count != sourceCountBeforeCleanup
-        for (rawURL, name) in defaults {
-            guard let url = URL(string: rawURL),
-                  !repositories.contains(where: { $0.url == url }) else { continue }
-            repositories.append(Repository(url: url, name: name))
-            changed = true
-        }
-        if changed { save() }
+        if NextDefaultSources.seed(in: &repositories) { save() }
     }
 
     // MARK: Repo list

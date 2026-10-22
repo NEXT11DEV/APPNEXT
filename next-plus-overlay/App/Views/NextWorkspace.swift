@@ -275,13 +275,22 @@ struct NextWorkspace: View {
                         Image("NextPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("NEXT PlUS").font(.title2.bold())
-                            Text("1.1.0").font(.caption.monospaced()).foregroundStyle(.secondary)
+                            Text("1.1.1").font(.caption.monospaced()).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
                 Section("التوقيع داخل جهازك") {
                     Button { showCertificates = true } label: { settingRow("شهادة P12", value: certificates.selected?.displayName ?? "أضف الشهادة", icon: "key.fill") }
                     Button { showProfiles = true } label: { settingRow("ملف provisioning", value: profiles.selected?.displayName ?? "أضف ملف الحماية", icon: "doc.badge.gearshape.fill") }
+                    if let profile = profiles.selected {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("معرّف التطبيقات المسموح به").font(.caption)
+                            Text(profile.applicationIdentifier ?? "غير موجود في الملف")
+                                .font(.caption.monospaced()).textSelection(.enabled)
+                                .environment(\.layoutDirection, .leftToRight)
+                            Text("* يعني السماح بعدة معرّفات ضمن النطاق المحدد.").font(.caption)
+                        }.foregroundStyle(.secondary)
+                    }
                     Text("اختَر الشهادة وملفها المتطابقين. التطبيق يقبل الشهادات بدون كلمة مرور أيضًا.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("المتجر") {

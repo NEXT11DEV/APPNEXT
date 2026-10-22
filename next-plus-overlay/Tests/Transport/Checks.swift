@@ -11,6 +11,10 @@ import Foundation
         precondition(NextSigningPolicy.allows(bundleID: "app.nextplus.test", applicationIdentifier: "TEAM.app.nextplus.*"))
         precondition(!NextSigningPolicy.allows(bundleID: "app.other.test", applicationIdentifier: "TEAM.app.nextplus.*"))
         precondition(!NextSigningPolicy.allows(bundleID: "app.nextplus.test2", applicationIdentifier: "TEAM.app.nextplus.test"))
+        precondition(NextSigningPolicy.profileIssue(bundleID: "com.gitswift.SwiftServer", applicationIdentifier: "TEAM.*") == nil)
+        let mismatch = NextSigningPolicy.profileIssue(bundleID: "com.gitswift.SwiftServer", applicationIdentifier: "TEAM.app.nextplus.store")!
+        precondition(mismatch.contains("com.gitswift.SwiftServer") && mismatch.contains("app.nextplus.store"))
+        precondition(NextSigningPolicy.profileIssue(bundleID: "app.example", applicationIdentifier: nil)!.contains("تعذر قراءة"))
         for invalid in ["bytes=99-100", "bytes=4-2", "bytes=a-", "bytes=0-3,4-6", "bytes=-0", "bytes=0-x"] {
             precondition(NextSigningPolicy.byteRange(invalid, size: 10) == nil)
         }

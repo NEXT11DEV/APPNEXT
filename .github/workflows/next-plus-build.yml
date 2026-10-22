@@ -37,6 +37,9 @@ jobs:
           set -euo pipefail
           swiftc -swift-version 6 App/Services/NextSigningPolicy.swift App/LocalInstallServer.swift Tests/Transport/Checks.swift -o /tmp/next-transport-tests
           /tmp/next-transport-tests
+      - name: Check default source migration and live NEXTDEV catalog
+        working-directory: build-source
+        run: python3 Tests/Sources/run.py
       - name: Exercise native zsign bridge with disposable fixtures
         working-directory: build-source
         run: |

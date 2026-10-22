@@ -15,11 +15,25 @@ enum NextSigningPolicy {
         return nil
     }
 
+    static func applicationPattern(_ applicationIdentifier: String?) -> String? {
+        guard let value = applicationIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let dot = value.firstIndex(of: ".") else { return nil }
+        let pattern = String(value[value.index(after: dot)...])
+        return pattern.isEmpty ? nil : pattern
+    }
+
     static func allows(bundleID: String, applicationIdentifier: String?) -> Bool {
-        guard let applicationIdentifier, let dot = applicationIdentifier.firstIndex(of: ".") else { return false }
-        let pattern = String(applicationIdentifier[applicationIdentifier.index(after: dot)...])
+        guard let pattern = applicationPattern(applicationIdentifier) else { return false }
         let escaped = NSRegularExpression.escapedPattern(for: pattern).replacingOccurrences(of: "\\*", with: ".*")
         return bundleID.range(of: "^" + escaped + "$", options: .regularExpression) != nil
+    }
+
+    static func profileIssue(bundleID: String, applicationIdentifier: String?) -> String? {
+        guard let pattern = applicationPattern(applicationIdentifier) else {
+            return "تعذر قراءة معرّف التطبيقات المسموح به من ملف provisioning المختار. أعد استيراد ملف صالح مطابق لشهادة P12."
+        }
+        guard !allows(bundleID: bundleID, applicationIdentifier: applicationIdentifier) else { return nil }
+        return "ملف provisioning المختار مقيّد بمعرّف مختلف.\nمعرّف التطبيق: \(bundleID)\nالمسموح بملف التوقيع: \(pattern)\nاختَر ملفًا مطابقًا لشهادة P12 يسمح بهذا التطبيق، أو ملف wildcard يسمح بعدة تطبيقات. تغيير المصدر أو كود الاشتراك لا يغيّر صلاحيات الملف."
     }
 
     static func byteRange(_ value: String?, size: UInt64) -> (start: UInt64, end: UInt64)? {
