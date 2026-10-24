@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 // MARK: - Persisted repository record
 
@@ -182,6 +183,8 @@ private enum LenientDecode {
 final class RepositoryStore: ObservableObject {
     @Published private(set) var repositories: [Repository] = []
 
+    var visibleRepositories: [Repository] { NextDefaultSources.visible(repositories) }
+
     /// Last successfully fetched catalog per repository (in memory only).
     @Published var catalog: [UUID: RepoSource] = [:]
     @Published var fetchError: [UUID: String] = [:]
@@ -270,6 +273,7 @@ final class RepositoryStore: ObservableObject {
     }
 
     func remove(_ repo: Repository) {
+        guard NextDefaultSources.canRemove(repo) else { return }
         repositories.removeAll { $0.id == repo.id }
         catalog[repo.id] = nil
         fetchError[repo.id] = nil
@@ -283,13 +287,21 @@ final class RepositoryStore: ObservableObject {
         fetchError[repo.id] = nil
         defer { if loadingRepoID == repo.id { loadingRepoID = nil } }
         do {
-            var req = URLRequest(url: repo.url)
-            req.cachePolicy = .reloadIgnoringLocalCacheData
-            req.timeoutInterval = 120
-            let (data, resp) = try await URLSession.shared.data(for: req)
-            guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
-                fetchError[repo.id] = "The repository server returned an error."
-                return
+            let data: Data
+            if NextDefaultSources.isBuiltIn(repo) {
+                data = try await Task.detached(priority: .utility) {
+                    try NextDefaultSources.bundledData()
+                }.value
+            } else {
+                var req = URLRequest(url: repo.url)
+                req.cachePolicy = .reloadIgnoringLocalCacheData
+                req.timeoutInterval = 120
+                let (downloaded, resp) = try await URLSession.shared.data(for: req)
+                guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
+                    fetchError[repo.id] = "The repository server returned an error."
+                    return
+                }
+                data = downloaded
             }
             let source = try await Task.detached(priority: .utility) {
                 try JSONDecoder().decode(RepoSource.self, from: data)
@@ -297,7 +309,7 @@ final class RepositoryStore: ObservableObject {
             catalog[repo.id] = source
             saveCatalogCache()
             // Adopt the source's own display name once we know it.
-            if let name = source.name, !name.isEmpty,
+            if !NextDefaultSources.isBuiltIn(repo), let name = source.name, !name.isEmpty,
                let i = repositories.firstIndex(where: { $0.id == repo.id }),
                repositories[i].name != name {
                 repositories[i].name = name
@@ -467,17 +479,22 @@ final class RepositoryStore: ObservableObject {
             return try? JSONDecoder().decode([UUID: RepoSource].self, from: data)
         }.value
         if let cached {
-            for repo in repositories {
+            for repo in visibleRepositories {
                 if let source = cached[repo.id] {
                     catalog[repo.id] = source
                 }
             }
         }
+        // Always use the installed catalog rather than stale disk data.
+        if let builtIn = repositories.first(where: { NextDefaultSources.isBuiltIn($0) }) {
+            await refresh(builtIn)
+        }
         catalogCacheLoaded = true
     }
 
     private func saveCatalogCache() {
-        let snapshot = catalog
+        let builtInIDs = Set(repositories.filter { NextDefaultSources.isBuiltIn($0) }.map(\.id))
+        let snapshot = catalog.filter { !builtInIDs.contains($0.key) }
         let destination = cacheURL
         Task.detached(priority: .utility) {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
@@ -534,3 +551,4 @@ extension RepoSource {
     }
 }
 #endif
+

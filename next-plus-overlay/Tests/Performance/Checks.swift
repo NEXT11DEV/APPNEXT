@@ -39,3 +39,4 @@ import Foundation
         print("PASS: 12,001-app catalog preserves source priority, deduplicates, searches and filters correctly")
     }
 }
+

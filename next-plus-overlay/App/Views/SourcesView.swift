@@ -19,7 +19,7 @@ struct SourcesView: View {
                     if let error { Text(error).font(.footnote).foregroundColor(.red) }
                 }
                 Section(header: Text("مصادر التطبيقات"), footer: Text("تطبيقات المصادر تظهر في تبويب المتجر. اسحب المصدر لحذفه.")) {
-                    ForEach(store.repositories) { repository in
+                    ForEach(store.visibleRepositories) { repository in
                         VStack(alignment: .leading, spacing: 7) {
                             HStack {
                                 Text(repository.name).font(.headline)
@@ -35,7 +35,7 @@ struct SourcesView: View {
                             if let message = store.fetchError[repository.id] { Text(message).font(.caption).foregroundColor(.orange) }
                         }.padding(.vertical, 6)
                     }.onDelete { offsets in
-                        let removed = offsets.map { store.repositories[$0] }
+                        let removed = offsets.map { store.visibleRepositories[$0] }
                         for repository in removed { store.remove(repository) }
                     }
                 }
@@ -58,3 +58,4 @@ struct SourcesView: View {
         }
     }
 }
+

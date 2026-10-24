@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import CryptoKit
 import Security
 
@@ -18,14 +19,14 @@ final class NextLicenseStore: ObservableObject {
     @Published private(set) var license: License?
     @Published var message = ""
     let installationID: String
-    private let vault = "app.nextplus.activation.v1"
+    private let vault = "app.idkplus.activation.v1"
 
     init() {
-        if let saved = Self.read("installation", service: "app.nextplus.activation.v1") {
+        if let saved = Self.read("installation", service: "app.idkplus.activation.v1") {
             installationID = saved
         } else {
             installationID = UUID().uuidString.uppercased()
-            if !Self.write(installationID, account: "installation", service: "app.nextplus.activation.v1") {
+            if !Self.write(installationID, account: "installation", service: "app.idkplus.activation.v1") {
                 message = "تعذر حفظ معرّف التطبيق. لا تطلب كودًا حتى تعيد فتح التطبيق ويثبت المعرّف."
             }
         }
@@ -56,14 +57,14 @@ final class NextLicenseStore: ObservableObject {
 
     private func verify(_ token: String) -> License? {
         let parts = token.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 3, parts[0] == "NP1",
+        guard parts.count == 3, parts[0] == "IDK1",
               let publicData = Data(base64Encoded: Self.publicKeyBase64),
               let publicKey = try? Curve25519.Signing.PublicKey(rawRepresentation: publicData),
               let signature = Self.decodeURLBase64(String(parts[2])),
               publicKey.isValidSignature(signature, for: Data(parts[1].utf8)),
               let payload = Self.decodeURLBase64(String(parts[1])),
               let value = try? JSONDecoder().decode(License.self, from: payload),
-              value.app == "app.nextplus.store", value.subject == installationID,
+              value.app == "app.idkplus.store", value.subject == installationID,
               value.issued <= Int64(Date().timeIntervalSince1970) + 300,
               value.expires > Int64(Date().timeIntervalSince1970), value.expires > value.issued
         else { return nil }
@@ -99,3 +100,4 @@ final class NextLicenseStore: ObservableObject {
         return SecItemAdd(added as CFDictionary, nil) == errSecSuccess
     }
 }
+

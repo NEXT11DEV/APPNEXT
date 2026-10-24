@@ -147,7 +147,7 @@ struct AppsView: View {
 
     private var titleHeader: some View {
         let isArabic = languageCode == AppLanguage.arabic.rawValue
-        return Text("NEXT PlUS")
+        return Text("idk plus")
             .font(T.sans(32, .bold))
             .foregroundColor(T.ink)
             // Use the selected language as the source of truth. The parent
@@ -314,3 +314,4 @@ struct AppsView: View {
         }
     }
 }
+

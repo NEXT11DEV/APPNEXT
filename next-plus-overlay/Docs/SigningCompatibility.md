@@ -1,6 +1,6 @@
 # Signing identifier compatibility
 
-NEXT PlUS 1.1.2 treats a textual difference between an app bundle identifier
+idk plus 1.1.2 treats a textual difference between an app bundle identifier
 and a provisioning profile application identifier as a diagnostic, rather than
 a reason to reject the operation before zsign runs.
 
@@ -14,7 +14,7 @@ The app also contains references to the Ksign project. Its public signing handle
 passes the certificate, profile, and optional custom bundle identifier separately:
 https://github.com/Nyasami/Ksign/blob/main/Ksign/Utilities/Handlers/ZsignHandler.swift
 
-NEXT PlUS keeps the app's existing bundle identifier and passes the selected
+idk plus keeps the app's existing bundle identifier and passes the selected
 profile to the existing signing engine. It does not rewrite all apps to the
 profile's identifier or modify the signed profile to add wildcard permissions.
 Certificate loading, password, expiry, and team checks remain in place. The
@@ -47,3 +47,4 @@ still required. Signed files remain available for retry and sharing.
 The packaging test checks the actual Info.plist and native Mach-O deployment
 versions. This is a deployment/availability check, not a physical iOS 15 device
 test. The current CI simulator runtime may be newer than iOS 15.
+

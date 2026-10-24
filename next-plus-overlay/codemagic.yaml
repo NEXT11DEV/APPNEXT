@@ -1,6 +1,6 @@
 workflows:
   ios-unsigned:
-    name: NEXT PlUS Unsigned IPA
+    name: idk plus Unsigned IPA
     max_build_duration: 30
     instance_type: mac_mini_m2
     environment:
@@ -14,13 +14,14 @@ workflows:
       - name: Archive and package unsigned IPA
         script: |
           set -e
-          xcodebuild -project NextPlus.xcodeproj -scheme iStore \
+          xcodebuild -project IDKPlus.xcodeproj -scheme iStore \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-            -archivePath build/NextPlus.xcarchive \
+            -archivePath build/IDKPlus.xcarchive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' archive
           mkdir -p build/ipa/Payload
-          cp -R build/NextPlus.xcarchive/Products/Applications/NextPlus.app build/ipa/Payload/
+          cp -R build/IDKPlus.xcarchive/Products/Applications/IDKPlus.app build/ipa/Payload/
           cd build/ipa
-          /usr/bin/zip -qry ../NEXT-PlUS-unsigned.ipa Payload
+          /usr/bin/zip -qry ../idk-plus-unsigned.ipa Payload
     artifacts:
-      - build/NEXT-PlUS-unsigned.ipa
+      - build/idk-plus-unsigned.ipa
+

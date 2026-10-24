@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  (d/'profile.plist').write_bytes(plistlib.dumps(profile))
  cmd('cms','-sign','-binary','-nodetach','-in',d/'profile.plist','-signer',d/'leaf.pem','-inkey',d/'leaf.key','-outform','DER','-out',d/'test.mobileprovision')
  app=d/'Payload/Smoke.app';app.mkdir(parents=True)
- (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='app.nextplus.smoke',CFBundleExecutable='Smoke',CFBundleName='Smoke',CFBundleVersion='1',CFBundleShortVersionString='1.0',CFBundlePackageType='APPL',MinimumOSVersion='15.0')))
+ (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='app.idkplus.smoke',CFBundleExecutable='Smoke',CFBundleName='Smoke',CFBundleVersion='1',CFBundleShortVersionString='1.0',CFBundlePackageType='APPL',MinimumOSVersion='15.0')))
  (d/'main.c').write_text('int main(void) { return 0; }\n')
  sdk=subprocess.check_output(['xcrun','--sdk','iphoneos','--show-sdk-path'],text=True).strip()
  run(['xcrun','clang','-target','arm64-apple-ios15.0','-isysroot',sdk,d/'main.c','-o',app/'Smoke'])
@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
    assert z.read('Payload/Smoke.app/embedded.mobileprovision')==(d/'test.mobileprovision').read_bytes()
    resources=plistlib.loads(z.read('Payload/Smoke.app/_CodeSignature/CodeResources'))
    assert 'resource.txt' in resources.get('files2',resources.get('files',{}))
-   assert plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))['CFBundleIdentifier']=='app.nextplus.smoke'
+   assert plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))['CFBundleIdentifier']=='app.idkplus.smoke'
    signed=z.read('Payload/Smoke.app/Smoke');assert b'\xfa\xde\x0c\xc0' in signed
    verify=d/('verify-'+name);z.extractall(verify)
   verify_signature(verify/'Payload/Smoke.app',openssl,d)
@@ -90,3 +90,4 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  (d/'invalid.ipa').write_text('not an IPA')
  assert sign('empty.p12','','invalid-output.ipa','invalid.ipa').returncode!=0
  print('PASS native bridge: rejects wrong password and invalid archive')
+

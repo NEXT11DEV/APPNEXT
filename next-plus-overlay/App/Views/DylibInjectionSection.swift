@@ -25,7 +25,7 @@ struct DylibInjectionSection: View {
                     Image(systemName: "info.circle")
                         .font(.system(size: 12))
                         .foregroundColor(T.accent2)
-                    Text("NEXT PlUS copies the dylib into a disposable IPA, adds its load command, then sends that IPA through the existing signer. Your original IPA is unchanged.")
+                    Text("idk plus copies the dylib into a disposable IPA, adds its load command, then sends that IPA through the existing signer. Your original IPA is unchanged.")
                         .font(T.mono(10))
                         .foregroundColor(T.ink3)
                         .fixedSize(horizontal: false, vertical: true)
@@ -55,3 +55,4 @@ struct DylibInjectionSection: View {
         }
     }
 }
+

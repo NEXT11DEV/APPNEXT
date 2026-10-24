@@ -24,7 +24,7 @@ final class LocalInstallServer: @unchecked Sendable {
     private var ipaURL: URL?
     private var bundleId = ""
     private var bundleVersion = "1.0"
-    private var title = "NEXT PlUS"
+    private var title = "idk plus"
 
     /// Local loopback base (plain HTTP). Used for the IPA and the Safari
     /// handoff page — never for the itms-services manifest URL.
@@ -58,7 +58,7 @@ final class LocalInstallServer: @unchecked Sendable {
         self.ipaURL = ipa
         self.bundleId = bundleId
         self.bundleVersion = bundleVersion.isEmpty ? "1.0" : bundleVersion
-        self.title = title.isEmpty ? "NEXT PlUS" : title
+        self.title = title.isEmpty ? "idk plus" : title
 
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else {
@@ -282,7 +282,7 @@ final class LocalInstallServer: @unchecked Sendable {
         </head>
         <body><div class="bloom b1"></div><div class="bloom b2"></div><div class="card">
         <h1>Installing \(title)…</h1>
-        <p>If no prompt appears, tap Install below. Keep NEXT PlUS open.</p>
+        <p>If no prompt appears, tap Install below. Keep idk plus open.</p>
         <a id="install" href="\(itms)">Install</a>
         </div>
         <script>setTimeout(function(){ window.location.assign("\(itms)"); }, 250);</script>
@@ -300,3 +300,4 @@ final class LocalInstallServer: @unchecked Sendable {
         return "itms-services://?action=download-manifest&url=\(encoded)"
     }
 }
+

@@ -47,3 +47,4 @@ struct ProfilesSheet: View {
         }.navigationViewStyle(StackNavigationViewStyle())
     }
 }
+

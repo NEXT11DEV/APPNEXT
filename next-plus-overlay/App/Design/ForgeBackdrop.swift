@@ -5,3 +5,4 @@ struct ForgeBackdrop: View {
         Color(uiColor: .systemGroupedBackground).ignoresSafeArea().accessibilityHidden(true)
     }
 }
+

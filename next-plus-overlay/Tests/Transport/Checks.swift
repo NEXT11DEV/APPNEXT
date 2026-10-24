@@ -7,13 +7,13 @@ import Foundation
         precondition(NextSigningPolicy.credentials(certificateExpiry: .distantPast, profileExpiry: future, certificateTeam: "A", profileTeam: "A") != nil)
         precondition(NextSigningPolicy.credentials(certificateExpiry: future, profileExpiry: future, certificateTeam: "A", profileTeam: "B") != nil)
         precondition(NextSigningPolicy.credentials(certificateExpiry: future, profileExpiry: future, certificateTeam: "A", profileTeam: "A") == nil)
-        precondition(NextSigningPolicy.identifierMatches(bundleID: "app.nextplus.test", applicationIdentifier: "TEAM.*"))
-        precondition(NextSigningPolicy.identifierMatches(bundleID: "app.nextplus.test", applicationIdentifier: "TEAM.app.nextplus.*"))
-        precondition(!NextSigningPolicy.identifierMatches(bundleID: "app.other.test", applicationIdentifier: "TEAM.app.nextplus.*"))
-        precondition(!NextSigningPolicy.identifierMatches(bundleID: "app.nextplus.test2", applicationIdentifier: "TEAM.app.nextplus.test"))
+        precondition(NextSigningPolicy.identifierMatches(bundleID: "app.idkplus.test", applicationIdentifier: "TEAM.*"))
+        precondition(NextSigningPolicy.identifierMatches(bundleID: "app.idkplus.test", applicationIdentifier: "TEAM.app.idkplus.*"))
+        precondition(!NextSigningPolicy.identifierMatches(bundleID: "app.other.test", applicationIdentifier: "TEAM.app.idkplus.*"))
+        precondition(!NextSigningPolicy.identifierMatches(bundleID: "app.idkplus.test2", applicationIdentifier: "TEAM.app.idkplus.test"))
         precondition(NextSigningPolicy.profileNotice(bundleID: "com.gitswift.SwiftServer", applicationIdentifier: "TEAM.*") == nil)
-        let mismatch = NextSigningPolicy.profileNotice(bundleID: "com.gitswift.SwiftServer", applicationIdentifier: "TEAM.app.nextplus.store")!
-        precondition(mismatch.contains("com.gitswift.SwiftServer") && mismatch.contains("app.nextplus.store"))
+        let mismatch = NextSigningPolicy.profileNotice(bundleID: "com.gitswift.SwiftServer", applicationIdentifier: "TEAM.app.idkplus.store")!
+        precondition(mismatch.contains("com.gitswift.SwiftServer") && mismatch.contains("app.idkplus.store"))
         precondition(NextSigningPolicy.profileNotice(bundleID: "app.example", applicationIdentifier: nil)!.contains("سيتحقق محرك"))
         precondition(mismatch.contains("لا يمنع محاولة التوقيع"))
         for invalid in ["bytes=99-100", "bytes=4-2", "bytes=a-", "bytes=0-3,4-6", "bytes=-0", "bytes=0-x"] {
@@ -28,7 +28,7 @@ import Foundation
         let bytes = Data((0..<10000).map { UInt8($0 % 251) })
         try bytes.write(to: file)
         let server = LocalInstallServer()
-        _ = try await server.start(ipa: file, bundleId: "app.nextplus.test", bundleVersion: "1", title: "Test")
+        _ = try await server.start(ipa: file, bundleId: "app.idkplus.test", bundleVersion: "1", title: "Test")
         defer { server.stop() }
         let url = URL(string: server.payloadURL)!
         let (all, response) = try await URLSession.shared.data(from: url)
@@ -48,3 +48,4 @@ import Foundation
         print("PASS: credential policy, bundle permissions, real HTTP GET/HEAD/ranges/416, file retention")
     }
 }
+

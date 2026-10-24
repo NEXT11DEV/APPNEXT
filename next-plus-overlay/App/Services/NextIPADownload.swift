@@ -81,3 +81,4 @@ final class NextIPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Se
     }
 }
 
+

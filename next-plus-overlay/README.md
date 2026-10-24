@@ -1,100 +1,16 @@
-# NEXT PlUS
+# idk plus 1.0.0
 
-تطبيق iOS باسم NEXT PlUS، مبني على مصدر iStore ومحرك zsign المضمّن، مع تفعيل
-اشتراكات محلي موقّع رقميًا. الحد الأدنى المستهدف iOS 15.0 أو أحدث.
+iOS 15+ app library and on-device IPA signing, derived from NEXT PlUS 1.2.1.
 
-## البناء والتحقق
+- Separate bundle identifier: `app.idkplus.store`.
+- All first-party screens and both icon asset sets use idk plus.
+- The attached 20,419-entry JSON catalog is shipped in the app, decoded offline, and indexed with the existing catalog cache/index optimizations.
+- The built-in repository is hidden from source management and cannot be removed through RepositoryStore. User-added sources remain manageable.
+- This is a bundled catalog snapshot. New catalog versions require an app update until the owner provides a persistent live feed.
+- Source URLs are not secrets; hidden means absent from the management interface.
+- Existing on-device certificate/profile checks, native signing, automatic iOS installation request, and export remain.
+- Offline subscriptions use the separate idk plus app identity and owner-only issuer; private keys are never in source or IPA.
 
-مسار GitHub Actions يجمع المصدر المثبّت لمحرك iStore مع تعديلات NEXT PlUS،
-ويُنتج NEXT-PlUS-unsigned.ipa. يحتاج ملف التطبيق الناتج إلى توقيع بشهادة Apple
-مناسبة قبل تثبيته على الآيفون. شهادة المشترك وملف provisioning يبقيان على جهازه.
+The GitHub workflow assembles the pinned upstream engine and this overlay, expands `idk-catalog.json.gz` into the app bundle, validates the real service lifecycle, native signing, transport, packaged deployment target and identity, and captures the simulator interface.
 
-## الوظائف
-
-- اسم NEXT PlUS في شاشة الآيفون وداخل التطبيق، مع أيقونة وهوية جديدة.
-- تفعيل بكود اشتراك رقمي مرتبط بمعرّف تثبيت التطبيق، وحفظه في Keychain.
-- كود الاشتراك يُصدر من أداة صاحب المتجر المنفصلة، ولا يحتاج سيرفرًا دائمًا.
-- استيراد IPA من الملفات أو الروابط، وإدارة مصادر AltStore JSON.
-- استيراد P12 وملف provisioning، والتوقيع المحلي بمحرك zsign.
-- تنزيل التطبيق من المصدر ثم توقيعه وتسليمه لمُثبّت iOS، دون حفظ IPA يدويًا.
-- مكتبة تحفظ النسخ الموقّعة لإعادة التثبيت أو المشاركة، مع تفاصيل مراحل العملية.
-- إضافة مصدر NEXTDEV تلقائيًا للتثبيت الجديد والتحديث، دون تكراره أو حذف مصادر المستخدم:
-  https://raw.githubusercontent.com/NEXT11DEV/NEXT-SOURCE/main/NEXTDEV-ESign.json
-- بعد نجاح التوقيع تُفتح مطالبة التثبيت تلقائيًا؛ تبقى موافقة iOS مطلوبة.
-- واجهات التنقل والمشاركة وإدارة الشهادات والمصادر متوافقة مع حد iOS 15 المستهدف.
-
-## إصدار كود للمشترك
-
-1. يثبت المشترك NEXT PlUS أولًا بشهادة Apple مناسبة؛ كود الاشتراك لا يوقّع التطبيق.
-2. يفتح التطبيق ويرسل معرّف المشترك الظاهر على شاشة التفعيل.
-3. صاحب المتجر يشغّل issue_code.py من حزمة OWNER-PRIVATE على حاسبته وقت الحاجة،
-   ويدخل المعرّف والاسم وعدد الأيام.
-4. يرسل كود NP1 الناتج للمشترك ليلصقه في التطبيق.
-5. يضيف المشترك شهادته وملف provisioning داخل التطبيق ويبدأ التوقيع والتثبيت.
-
-الكود طويل ويُنسخ ويُلصق؛ ليس رمزًا قصيرًا من ست خانات. الأداة الخاصة والمفتاح
-الخاص منفصلان عن هذا المصدر. التطبيق يحتوي مفتاح التحقق العام فقط.
-
-## حدود التفعيل المحلي
-
-- لا توجد إدارة عن بُعد أو إمكانية إلغاء الاشتراك قبل تاريخ انتهائه في هذه النسخة.
-- يستخدم التحقق ساعة الجهاز؛ لا تمثل هذه الآلية حماية غير قابلة للتجاوز.
-- المعرف يخص تثبيت التطبيق وKeychain، وليس UDID رسميًا.
-- ضياع المعرّف يتطلب كودًا جديدًا. قد يبقى المعرّف بعد إعادة التثبيت حسب Keychain.
-- يمكن إصدار كود جديد للتجديد؛ تظهر شاشة التفعيل عند انتهاء الاشتراك الحالي.
-- الكود لا يتجاوز قيود شهادات Apple ولا يضيف جهازًا إلى ملف provisioning.
-
-## بناء IPA على GitHub
-
-ارفع محتويات هذا المصدر فقط إلى مستودع تتحكم به. لا ترفع حزمة OWNER-PRIVATE.
-داخل المستودع افتح Actions، ثم Build NEXT PlUS IPA، ثم Run workflow.
-الملف الناتج يوجد ضمن Artifacts باسم NEXT-PlUS-unsigned-IPA.
-يعتمد المسار على runner macOS وأدوات Xcode وXcodeGen.
-
-GitHub يستخدم هنا لبناء التطبيق فقط، وليس كسيرفر توقيع للمشتركين. يمكن استعمال
-runner قياسي على مستودع عام وفق خطة GitHub وحدود حسابك. لا تتضمن عملية البناء
-شهادات المشتركين ولا مفتاح إصدار الأكواد الخاص بصاحب المتجر.
-
-للبناء محليًا على macOS:
-
-```sh
-brew install xcodegen
-xcodegen generate
-open NextPlus.xcodeproj
-```
-
-اسم Scheme الداخلي بقي iStore للتوافق مع إعدادات المشروع؛ اسم التطبيق الناتج
-NextPlus.app والاسم الظاهر NEXT PlUS، ومعرّف الحزمة app.nextplus.store.
-
-## ملفات IPA المرفقة
-
-تم فحص بيانات iStore1_3.ipa وBatSign 1.ipa وZsign_4.0.ipa. ملفات IPA ليست مصدرًا
-يمكن دمجه تلقائيًا. الأساس القابل للتعديل هو مستودع iStore الذي أرسله صاحب
-المشروع؛ محرك zsign وOpenSSL فيه يوفران وظيفة التوقيع المشتركة مع أدوات التوقيع.
-لم يُنسخ كود تنفيذي مجهول من التطبيقات الأخرى ولم يُدّع استعادة مصدرها.
-
-## مسار التثبيت
-
-توقيع IPA يجري داخل الآيفون. مسار iStore الموروث يقدم IPA عبر خادم محلي داخل
-التطبيق ويطلب manifest من api.palera.in/genPlist. لا يُرسل هذا المسار شهادة P12
-لذلك الخادم، لكنه يعتمد على توفر الخدمة الخارجية. يجب اختبار هذا المسار على
-إصدار iOS المستهدف؛ ليس ضمانًا بأن كل ملف IPA يقبل التثبيت.
-
-## مسار الاختبارات
-
-تتضمن الاختبارات فحص مدخلات التوقيع، ونقل IPA عبر HTTP المحلي مع HEAD وRange،
-وتوافق المصدر الافتراضي وقراءة فهرسه. يستخدم اختبار محرك zsign شهادات تجريبية
-مؤقتة للتحقق من التواقيع المشفّرة وبصمات الملفات، بما فيها توقيع تطبيقين مختلفين
-بنفس ملف provisioning مع الحفاظ على معرّفيهما وبيانات الملف.
-
-يفحص اختبار الحزمة MinimumOSVersion وإصدارات Mach-O الفعلية للتأكد من أن الحد
-الأدنى iOS 15.0. فحص البناء والتواقيع لا يثبت قبول شهادة Apple أو التثبيت على
-جهاز iOS 15 فعلي؛ يحتاج ذلك تجربة على الجهاز بالشهادة وملفها.
-
-## حقوق المكونات
-
-المصدر الأصلي: https://github.com/hggdet/iStore-iOS
-النسخة المرجعية: fdefea2617b27374dbb79de9b23f05a728cdbe3b
-
-احتُفظ بترخيص iStore الأصلي وبإشعارات zsign وOpenSSL في LICENSE
-وTHIRD_PARTY_NOTICES.md وlicenses/. واجهة التطبيق تحمل هوية NEXT PlUS.
+Retain the upstream source licenses. This app retains the original signing engine license obligations.

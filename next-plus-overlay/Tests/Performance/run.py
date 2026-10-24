@@ -6,3 +6,4 @@ with tempfile.TemporaryDirectory(prefix='next-performance-') as d:
  (d/'Models.swift').write_text(models)
  subprocess.run(['swiftc','-swift-version','6',str(d/'Models.swift'),'App/Services/NextCatalogIndex.swift','App/Services/NextProgressThrottle.swift','Tests/Performance/Checks.swift','-o',str(d/'checks')],check=True)
  subprocess.run([str(d/'checks')],check=True)
+

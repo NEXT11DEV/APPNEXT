@@ -39,3 +39,4 @@ def verify(app,openssl,scratch):
  assert (scratch/'verified.bin').read_bytes()==cd
  print('PASS: executable page hashes, Info.plist/resource seal, and cryptographic CMS signature (Apple trust not asserted)')
  return plistlib.loads(slots[5][8:])
+

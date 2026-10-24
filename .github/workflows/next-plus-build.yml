@@ -1,12 +1,12 @@
-name: Build NEXT PlUS IPA
+name: Build idk plus IPA
 on:
   push:
-    branches: [next-plus-build]
+    branches: [idk-plus-build]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: next-plus-build-${{ github.sha }}
+  group: idk-plus-build-${{ github.sha }}
   cancel-in-progress: true
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Assemble pinned iStore engine and NEXT PlUS source
+      - name: Assemble pinned iStore engine and idk plus source
         run: |
           set -euo pipefail
           git init build-source
@@ -26,6 +26,20 @@ jobs:
           git -C build-source fetch --depth 1 origin fdefea2617b27374dbb79de9b23f05a728cdbe3b
           git -C build-source checkout --detach FETCH_HEAD
           cp -R next-plus-overlay/. build-source/
+          python3 - <<'PYDATA'
+          import gzip,pathlib
+          root=pathlib.Path('build-source')
+          resources=root/'App/Resources'
+          resources.mkdir(parents=True,exist_ok=True)
+          (resources/'IDKPlusCatalog.json').write_bytes(gzip.decompress(b''.join(p.read_bytes() for p in sorted(pathlib.Path('idk-assets').glob('catalog-*.part')))))
+          icon=b''.join(p.read_bytes() for p in sorted(pathlib.Path('idk-assets').glob('icon-*.part')))
+          import hashlib
+          assert hashlib.sha256(icon).hexdigest()=='45676ce9e0e38e3f57857226823e8b60e176c8377fe276d3cd88d6b81ad203b9'
+          (root/'App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png').write_bytes(icon)
+          (root/'App/Assets.xcassets/IDKPlusIcon.imageset/IDKPlusIcon.png').write_bytes(icon)
+          import shutil
+          shutil.rmtree(root/'App/Assets.xcassets/NextPlusIcon.imageset',ignore_errors=True)
+          PYDATA
       - name: Verify Xcode and generate project
         working-directory: build-source
         run: |
@@ -39,7 +53,7 @@ jobs:
           set -euo pipefail
           swiftc -swift-version 6 App/Services/NextSigningPolicy.swift App/LocalInstallServer.swift Tests/Transport/Checks.swift -o /tmp/next-transport-tests
           /tmp/next-transport-tests
-      - name: Check default source migration and live NEXTDEV catalog
+      - name: Check embedded catalog, hidden source policy, and actual store lifecycle
         working-directory: build-source
         run: python3 Tests/Sources/run.py
       - name: Check progress throttling and large catalog indexing
@@ -54,13 +68,13 @@ jobs:
       - name: Verify live HTTPS install manifest
         working-directory: build-source
         run: python3 Tests/Manifest/check.py
-      - name: Compile NEXT PlUS
+      - name: Compile idk plus
         working-directory: build-source
         run: |
           set -euo pipefail
-          xcodebuild -project NextPlus.xcodeproj -scheme iStore \
+          xcodebuild -project IDKPlus.xcodeproj -scheme iStore \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-            -archivePath build/NextPlus.xcarchive \
+            -archivePath build/IDKPlus.xcarchive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' archive
       - name: Package unsigned IPA
@@ -68,40 +82,41 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/ipa/Payload
-          cp -R build/NextPlus.xcarchive/Products/Applications/NextPlus.app build/ipa/Payload/
+          cp -R build/IDKPlus.xcarchive/Products/Applications/IDKPlus.app build/ipa/Payload/
           cd build/ipa
-          /usr/bin/zip -qry ../NEXT-PlUS-unsigned.ipa Payload
+          /usr/bin/zip -qry ../idk-plus-unsigned.ipa Payload
       - name: Audit packaged iOS 15 compatibility
         working-directory: build-source
-        run: python3 Tests/Packaging/check.py build/NEXT-PlUS-unsigned.ipa
+        run: python3 Tests/Packaging/check.py build/idk-plus-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: NEXT-PlUS-unsigned-IPA
-          path: build-source/build/NEXT-PlUS-unsigned.ipa
+          name: idk-plus-unsigned-IPA
+          path: build-source/build/idk-plus-unsigned.ipa
           retention-days: 7
           if-no-files-found: error
       - name: Build simulator and capture real interface
         working-directory: build-source
         run: |
           set -euo pipefail
-          xcodebuild -project NextPlus.xcodeproj -scheme iStoreUISim -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build > build/sim-build.log 2>&1 || { tail -100 build/sim-build.log; exit 1; }
+          xcodebuild -project IDKPlus.xcodeproj -scheme iStoreUISim -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build > build/sim-build.log 2>&1 || { tail -100 build/sim-build.log; exit 1; }
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for a in d["devices"].values() for x in a if "iPhone" in x["name"]))')
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
-          xcrun simctl install "$DEVICE" build/sim/Build/Products/Debug-iphonesimulator/NextPlusUISim.app
+          xcrun simctl install "$DEVICE" build/sim/Build/Products/Debug-iphonesimulator/IDKPlusUISim.app
           mkdir -p build/screenshots
           for TAB in 0 1 2; do
-            SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB="$TAB" xcrun simctl launch "$DEVICE" app.nextplus.store.uisim
+            SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB="$TAB" xcrun simctl launch "$DEVICE" app.idkplus.store.uisim
             sleep 5
             xcrun simctl io "$DEVICE" screenshot "build/screenshots/tab-$TAB.png"
-            xcrun simctl terminate "$DEVICE" app.nextplus.store.uisim
+            xcrun simctl terminate "$DEVICE" app.idkplus.store.uisim
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: NEXT-PlUS-validation
+          name: idk-plus-validation
           path: |
             build-source/build/screenshots
             build-source/build/sim-build.log
           retention-days: 7
+
 

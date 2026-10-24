@@ -908,7 +908,7 @@ struct ContentView: View {
             : (signer.stage(source) ?? (fallbackToSource ? source : nil))
         guard let localURL else {
             ipaURL = nil
-            preflightState = .failed("The IPA could not be copied into NEXT PlUS storage.")
+            preflightState = .failed("The IPA could not be copied into idk plus storage.")
             return
         }
 
@@ -1200,3 +1200,4 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
+

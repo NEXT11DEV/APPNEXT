@@ -94,10 +94,10 @@ struct NextWorkspace: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack(spacing: 13) {
-                        Image("NextPlusIcon").resizable().scaledToFit().frame(width: 52, height: 52)
+                        Image("IDKPlusIcon").resizable().scaledToFit().frame(width: 52, height: 52)
                             .clipShape(RoundedRectangle(cornerRadius: 15))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("NEXT PlUS").font(.system(size: 26, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.75)
+                            Text("idk plus").font(.system(size: 26, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.75)
                             Text("مساحتك للتطبيقات").font(.subheadline).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -280,10 +280,10 @@ struct NextWorkspace: View {
             Form {
                 Section {
                     HStack(spacing: 15) {
-                        Image("NextPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
+                        Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("NEXT PlUS").font(.title2.bold())
-                            Text("1.2.1").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("idk plus").font(.title2.bold())
+                            Text("1.0.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
@@ -302,10 +302,10 @@ struct NextWorkspace: View {
                     Text("اختَر الشهادة وملفها المتطابقين. التطبيق يقبل الشهادات بدون كلمة مرور أيضًا.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("المتجر") {
-                    Button { showSources = true } label: { settingRow("مصادر التطبيقات", value: "\(repositories.repositories.count) مصدر", icon: "shippingbox.fill") }
+                    Button { showSources = true } label: { settingRow("مصادر التطبيقات", value: "\(repositories.visibleRepositories.count) مصدر", icon: "shippingbox.fill") }
                     Button { showImporter = true; tab = 1 } label: { settingRow("استيراد IPA", value: "من ملفات جهازك", icon: "square.and.arrow.down.fill") }
                 }
-                Section("اشتراك NEXT PlUS") { NextSubscriptionDetails() }
+                Section("اشتراك idk plus") { NextSubscriptionDetails() }
                 Section {
                     Text("بعد نجاح التوقيع يفتح طلب iOS تلقائيًا؛ وافق على النافذة. قبول التثبيت يعتمد على صلاحية شهادة Apple وتوافق ملف provisioning مع جهازك.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -324,7 +324,7 @@ struct NextWorkspace: View {
 
     private func refresh() async {
         await withTaskGroup(of: Void.self) { group in
-            for repository in repositories.repositories { group.addTask { await repositories.refresh(repository) } }
+            for repository in repositories.visibleRepositories { group.addTask { await repositories.refresh(repository) } }
         }
     }
 }
@@ -339,4 +339,5 @@ private struct NextSubscriptionDetails: View {
         Text(access.installationID).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
     }
 }
+
 

@@ -19,10 +19,15 @@ def versions(b):
    o+=s
 
 with zipfile.ZipFile(sys.argv[1]) as z:
- info=plistlib.loads(z.read('Payload/NextPlus.app/Info.plist'))
+ info=plistlib.loads(z.read('Payload/IDKPlus.app/Info.plist'))
  assert info['MinimumOSVersion']=='15.0',info['MinimumOSVersion']
- assert info['CFBundleIdentifier']=='app.nextplus.store'
- main=versions(z.read('Payload/NextPlus.app/NextPlus'))
+ assert info['CFBundleIdentifier']=='app.idkplus.store'
+ assert info['CFBundleDisplayName']=='idk plus'
+ import json
+ catalog=json.loads(z.read('Payload/IDKPlus.app/IDKPlusCatalog.json'))
+ assert len(catalog['apps'])==20419
+ assert 'Payload/IDKPlus.app/NextPlusIcon.png' not in z.namelist()
+ main=versions(z.read('Payload/IDKPlus.app/IDKPlus'))
  assert list(main)==[15<<16],'Main executable must target iOS 15.0'
  native=0
  for name in z.namelist():
@@ -32,3 +37,4 @@ with zipfile.ZipFile(sys.argv[1]) as z:
    assert minimum <= 15<<16, (name,hex(minimum))
    native+=1
  print('PASS: IPA minimum iOS 15.0, stable bundle ID, all '+str(native)+' native slices target iOS 15 or earlier')
+

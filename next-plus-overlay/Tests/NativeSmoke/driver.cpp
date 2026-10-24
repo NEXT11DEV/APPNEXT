@@ -9,3 +9,4 @@ int main(int argc, char** argv) {
     printf("status=%d message=%s bundle=%s version=%s\n", status, message, bid, version);
     return status;
 }
+

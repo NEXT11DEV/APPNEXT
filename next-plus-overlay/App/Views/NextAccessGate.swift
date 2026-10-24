@@ -26,10 +26,10 @@ struct NextAccessGate<Content: View>: View {
                 NavigationView {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-                            Image("NextPlusIcon").resizable().scaledToFit()
+                            Image("IDKPlusIcon").resizable().scaledToFit()
                                 .frame(width: 86, height: 86).clipShape(RoundedRectangle(cornerRadius: 23))
                                 .padding(.top, 38)
-                            Text("NEXT PlUS")
+                            Text("idk plus")
                                 .font(.system(size: 38, weight: .black, design: .rounded))
                             Text("تطبيقاتك. توقيعك. بمكان واحد.")
                                 .font(.title3.bold())
@@ -80,3 +80,4 @@ struct NextAccessGate<Content: View>: View {
         }
     }
 }
+

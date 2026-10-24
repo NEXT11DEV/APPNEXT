@@ -19,7 +19,7 @@ final class InstallController: ObservableObject {
         installStatus = "تم إيقاف طلب التثبيت. ملف IPA الموقّع يبقى محفوظًا."
     }
 
-    func install(ipa: URL, bundleId: String, version: String, title: String = "NEXT PlUS") {
+    func install(ipa: URL, bundleId: String, version: String, title: String = "idk plus") {
         cancel()
         let generation = UUID(); installGeneration = generation
         installStatus = "التحقق من ملف IPA وخدمة التثبيت…"
@@ -68,7 +68,7 @@ final class InstallController: ObservableObject {
                 guard installGeneration == generation else { return }
                 guard let url = URL(string: server.itmsServicesURL) else { throw NextFailure("رابط التثبيت غير صالح.") }
                 InstallKeepAlive.shared.start()
-                installStatus = "أُرسل طلب التثبيت إلى iOS. وافق على النافذة إن ظهرت وأبقِ NEXT PlUS مفتوحًا أثناء النقل."
+                installStatus = "أُرسل طلب التثبيت إلى iOS. وافق على النافذة إن ظهرت وأبقِ idk plus مفتوحًا أثناء النقل."
                 let opened = await UIApplication.shared.open(url, options: [:])
                 guard opened else { throw NextFailure("iOS لم يفتح طلب التثبيت. يمكنك تصدير IPA الموقّع.") }
                 try await Task.sleep(nanoseconds: 10 * 60 * 1_000_000_000)
@@ -92,3 +92,4 @@ final class InstallController: ObservableObject {
         UIApplication.shared.open(url)
     }
 }
+

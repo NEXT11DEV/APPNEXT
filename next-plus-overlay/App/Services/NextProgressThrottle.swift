@@ -11,3 +11,4 @@ struct NextProgressThrottle {
         return true
     }
 }
+

@@ -1,6 +1,6 @@
-name: NextPlus
+name: IDKPlus
 options:
-  bundleIdPrefix: app.nextplus
+  bundleIdPrefix: app.idkplus
   deploymentTarget:
     iOS: "15.0"
   createIntermediateGroups: true
@@ -49,8 +49,8 @@ targets:
       - path: App/Resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.nextplus.store
-        PRODUCT_NAME: NextPlus
+        PRODUCT_BUNDLE_IDENTIFIER: app.idkplus.store
+        PRODUCT_NAME: IDKPlus
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -104,9 +104,10 @@ targets:
       - path: App/Resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.nextplus.store.uisim
-        PRODUCT_NAME: NextPlusUISim
+        PRODUCT_BUNDLE_IDENTIFIER: app.idkplus.store.uisim
+        PRODUCT_NAME: IDKPlusUISim
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"
+

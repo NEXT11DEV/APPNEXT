@@ -23,3 +23,4 @@ private struct NextActivitySheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
+
