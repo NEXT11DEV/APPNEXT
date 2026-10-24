@@ -6,6 +6,7 @@ final class NextIPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Se
     private let lock = NSLock()
     private var continuation: CheckedContinuation<URL, Error>?
     private var destination: URL?
+    private var progressThrottle = NextProgressThrottle()
     private var session: URLSession?
     private var progress: (@Sendable (Double?) -> Void)?
 
@@ -16,6 +17,7 @@ final class NextIPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Se
                 self.continuation = continuation
                 self.destination = destination
                 self.progress = progress
+                self.progressThrottle = NextProgressThrottle()
                 lock.unlock()
                 let config = URLSessionConfiguration.ephemeral
                 config.timeoutIntervalForRequest = 45
@@ -49,8 +51,11 @@ final class NextIPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Se
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                     didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         if totalBytesWritten > 2_147_483_648 { cancel(); return }
-        lock.lock(); let callback = progress; lock.unlock()
-        callback?(totalBytesExpectedToWrite > 0 ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) : nil)
+        let completed = totalBytesExpectedToWrite > 0 && totalBytesWritten >= totalBytesExpectedToWrite
+        lock.lock()
+        let callback = progressThrottle.shouldEmit(at: ProcessInfo.processInfo.systemUptime, completed: completed) ? progress : nil
+        lock.unlock()
+        callback?(totalBytesExpectedToWrite > 0 ? min(1, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)) : nil)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
@@ -75,3 +80,4 @@ final class NextIPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Se
         if let error { finish(.failure(error)) }
     }
 }
+

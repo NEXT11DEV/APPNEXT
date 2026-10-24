@@ -35,22 +35,13 @@ struct NextWorkspace: View {
             profiles: profiles, history: history, installer: installer))
     }
 
-    private var apps: [RepoApp] {
-        var seen = Set<String>()
-        var result: [RepoApp] = []
-        for repository in repositories.repositories {
-            guard let catalog = repositories.catalog[repository.id] else { continue }
-            for app in catalog.apps {
-                guard seen.insert(app.id).inserted else { continue }
-                if !query.isEmpty && !app.name.localizedCaseInsensitiveContains(query) { continue }
-                let appCategory = app.category ?? ""
-                let isGame = appCategory.lowercased().contains("game") || appCategory.contains("ألعاب")
-                if category == "ألعاب" && !isGame { continue }
-                if category == "تطبيقات" && isGame { continue }
-                result.append(app)
-            }
-        }
-        return result
+    @State private var allApps: [RepoApp] = []
+    @State private var apps: [RepoApp] = []
+
+    private func rebuildCatalog(repositories: [Repository], catalog: [UUID: RepoSource]) {
+        let index = NextCatalogIndex.flatten(repositories: repositories, catalog: catalog)
+        allApps = index
+        apps = NextCatalogIndex.filter(index, query: query, category: category)
     }
 
     var body: some View {
@@ -59,6 +50,14 @@ struct NextWorkspace: View {
             library.tabItem { Label("المكتبة", systemImage: "square.stack.3d.up.fill") }.tag(1)
             settings.tabItem { Label("الإعدادات", systemImage: "slider.horizontal.3") }.tag(2)
         }
+        .onReceive(repositories.$catalog) { catalog in
+            rebuildCatalog(repositories: repositories.repositories, catalog: catalog)
+        }
+        .onReceive(repositories.$repositories) { repositories in
+            rebuildCatalog(repositories: repositories, catalog: self.repositories.catalog)
+        }
+        .onChange(of: query) { _ in apps = NextCatalogIndex.filter(allApps, query: query, category: category) }
+        .onChange(of: category) { _ in apps = NextCatalogIndex.filter(allApps, query: query, category: category) }
         .navigationViewStyle(StackNavigationViewStyle())
         .tint(NextStyle.purple)
         .sheet(isPresented: $showSources) { SourcesView() }
@@ -188,7 +187,7 @@ struct NextWorkspace: View {
                 if signing.busy { tab = 1 }
             } label: {
                 Text("تثبيت").font(.system(size: 13, weight: .bold))
-                    .frame(width: 72, height: 36).background(NextStyle.purple.opacity(0.11), in: Circle())
+                    .frame(width: 72, height: 36).background(NextStyle.purple.opacity(0.11), in: Capsule())
             }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
                 .accessibilityLabel("تنزيل وتوقيع \(app.name)")
         }.padding(14).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
@@ -262,7 +261,7 @@ struct NextWorkspace: View {
                 Button("إلغاء التنزيل", role: .cancel) { signing.cancel() }.buttonStyle(.bordered)
             }
             if signing.phase == .ready {
-                Button("تثبيت النسخة الموقّعة") { signing.installSigned() }.buttonStyle(.borderedProminent)
+                Button("إعادة طلب التثبيت") { signing.installSigned() }.buttonStyle(.borderedProminent)
                 if let url = signing.signedURL { NextShareButton(item: url) { Label("تصدير IPA الموقّع", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered) }
             }
             if let notice = signing.signingNotice {
@@ -284,7 +283,7 @@ struct NextWorkspace: View {
                         Image("NextPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("NEXT PlUS").font(.title2.bold())
-                            Text("1.2.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("1.2.1").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
@@ -308,7 +307,7 @@ struct NextWorkspace: View {
                 }
                 Section("اشتراك NEXT PlUS") { NextSubscriptionDetails() }
                 Section {
-                    Text("بعد نجاح التوقيع، اضغط تثبيت ووافق على طلب iOS. قبول التثبيت يعتمد على صلاحية شهادة Apple وتوافق ملف provisioning مع جهازك.")
+                    Text("بعد نجاح التوقيع يفتح طلب iOS تلقائيًا؛ وافق على النافذة. قبول التثبيت يعتمد على صلاحية شهادة Apple وتوافق ملف provisioning مع جهازك.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }.navigationTitle("الإعدادات")
@@ -340,3 +339,4 @@ private struct NextSubscriptionDetails: View {
         Text(access.installationID).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
     }
 }
+

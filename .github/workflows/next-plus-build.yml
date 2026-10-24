@@ -42,6 +42,9 @@ jobs:
       - name: Check default source migration and live NEXTDEV catalog
         working-directory: build-source
         run: python3 Tests/Sources/run.py
+      - name: Check progress throttling and large catalog indexing
+        working-directory: build-source
+        run: python3 Tests/Performance/run.py
       - name: Exercise native zsign bridge with disposable fixtures
         working-directory: build-source
         run: |
@@ -101,3 +104,4 @@ jobs:
             build-source/build/screenshots
             build-source/build/sim-build.log
           retention-days: 7
+

@@ -22,6 +22,7 @@ final class NextSigningCoordinator: ObservableObject {
     private let staging = SigningService()
     private var task: Task<Void, Never>?
     private var waitingRequest: Request?
+    private var operationID = UUID()
 
     enum Request { case repository(RepoApp), imported(URL) }
     var busy: Bool { [.downloading, .inspecting, .signing].contains(phase) }
@@ -49,9 +50,11 @@ final class NextSigningCoordinator: ObservableObject {
         let output = history.signedDir.appendingPathComponent("next-\(UUID().uuidString).ipa")
         let appName: String
         switch request { case .repository(let app): appName = app.name; case .imported(let url): appName = url.deletingPathExtension().lastPathComponent }
+        let currentOperation = UUID(); operationID = currentOperation
         title = appName
         phase = .inspecting; detail = "فحص ملفات التوقيع…"
         task = Task {
+            let operationStarted = ProcessInfo.processInfo.systemUptime
             defer { task = nil; try? FileManager.default.removeItem(at: work) }
             do {
                 try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -60,6 +63,7 @@ final class NextSigningCoordinator: ObservableObject {
                 }).value else { throw NextFailure("تعذر فتح شهادة P12. تحقق من كلمة مرورها، حتى إذا كانت فارغة.") }
                 if let issue = NextSigningPolicy.credentials(certificateExpiry: info.notAfter,
                     profileExpiry: profile.notAfter, certificateTeam: info.teamID, profileTeam: profile.teamID) { throw NextFailure(issue) }
+                recordDuration("فحص الشهادة", since: operationStarted)
                 let ipa: URL
                 switch request {
                 case .repository(let app):
@@ -67,10 +71,18 @@ final class NextSigningCoordinator: ObservableObject {
                         throw NextFailure("هذا التطبيق لا يحتوي رابط IPA صالحًا.")
                     }
                     phase = .downloading; detail = "جاري تنزيل التطبيق…"; record("بدء تنزيل IPA")
+                    let downloadStarted = ProcessInfo.processInfo.systemUptime
                     let downloader = NextIPADownload()
                     ipa = try await downloader.run(url: url, destination: work.appendingPathComponent("input.ipa")) { [weak self] value in
-                        Task { @MainActor in self?.progress = value }
+                        Task { @MainActor in
+                            guard let self, self.operationID == currentOperation, self.phase == .downloading else { return }
+                            self.progress = value
+                        }
                     }
+                    let elapsed = max(ProcessInfo.processInfo.systemUptime - downloadStarted, 0.001)
+                    let bytes = Int64((try? ipa.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                    recordDuration("التنزيل", since: downloadStarted)
+                    record("حجم IPA: \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))؛ متوسط التنزيل: \(ByteCountFormatter.string(fromByteCount: Int64(Double(bytes) / elapsed), countStyle: .file))/ثانية")
                 case .imported(let source):
                     let scoped = source.startAccessingSecurityScopedResource()
                     defer { if scoped { source.stopAccessingSecurityScopedResource() } }
@@ -80,9 +92,11 @@ final class NextSigningCoordinator: ObservableObject {
                 }
                 try Task.checkCancellation()
                 phase = .inspecting; progress = nil; detail = "فحص IPA وصلاحياته…"; record("اكتمل تنزيل/استيراد الملف؛ بدء فحص IPA")
+                let inspectionStarted = ProcessInfo.processInfo.systemUptime
                 let inspection = try await Task.detached(priority: .userInitiated) {
                     try IPAPreflightService.inspect(ipa: ipa, temporaryDirectory: work).get()
                 }.value
+                recordDuration("فحص IPA", since: inspectionStarted)
                 guard inspection.encryptedExecutableCount == 0 else { throw NextFailure("التطبيق مشفّر من App Store؛ إعادة التوقيع وحدها لا تكفي لتثبيته.") }
                 if let notice = NextSigningPolicy.profileNotice(bundleID: inspection.bundleIdentifier,
                     applicationIdentifier: profile.applicationIdentifier) {
@@ -91,11 +105,13 @@ final class NextSigningCoordinator: ObservableObject {
                 }
                 try Task.checkCancellation()
                 phase = .signing; detail = "توقيع التطبيق داخل الآيفون…"; record("بدء محرك zsign")
+                let signingStarted = ProcessInfo.processInfo.systemUptime
                 let result = await Task.detached(priority: .userInitiated) {
                     SigningService.sign(ipa: ipa, p12: certificateURL, password: password, profile: profileURL,
                         bundleId: "", displayName: "", shortVersion: "", icon: nil, output: output,
                         tempDir: work, removeExtensions: false, enableDocuments: false)
                 }.value
+                recordDuration("التوقيع وتجهيز IPA", since: signingStarted)
                 guard result.ok else { throw NextFailure(result.message) }
                 guard FileManager.default.fileExists(atPath: output.path),
                       ((try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) > 0 else {
@@ -108,6 +124,7 @@ final class NextSigningCoordinator: ObservableObject {
                                bundleId: result.signedBundleId, version: result.signedVersion, certificateCN: certificate.commonName)
                 phase = .ready; detail = "تم التوقيع. جاري فتح طلب التثبيت؛ وافق على نافذة iOS عند ظهورها."
                 record("نجح التوقيع؛ النسخة محفوظة في المكتبة")
+                recordDuration("الإجمالي قبل طلب التثبيت", since: operationStarted)
                 installSigned()
             } catch is CancellationError {
                 try? FileManager.default.removeItem(at: output)
@@ -130,6 +147,9 @@ final class NextSigningCoordinator: ObservableObject {
         guard let signedURL else { return }
         installer.install(ipa: signedURL, bundleId: signedBundle, version: signedVersion, title: title)
     }
+    private func recordDuration(_ label: String, since start: TimeInterval) {
+        record(String(format: "%@: %.2f ثانية", label, ProcessInfo.processInfo.systemUptime - start))
+    }
     private func record(_ value: String) { log.append(value) }
     private func fail(_ message: String) { phase = .failed; detail = message; error = message; record(message) }
 }
@@ -139,3 +159,4 @@ struct NextFailure: LocalizedError, Sendable {
     init(_ message: String) { self.message = message }
     var errorDescription: String? { message }
 }
+
