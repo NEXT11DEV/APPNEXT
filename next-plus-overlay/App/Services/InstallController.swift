@@ -9,6 +9,7 @@ final class InstallController: ObservableObject {
     @Published var installStatus = ""
     private var installTask: Task<Void, Never>?
     private var installGeneration = UUID()
+    private var setupBackground: UIBackgroundTaskIdentifier = .invalid
     var onDelivered: (() -> Void)?
 
     func cancel() {
@@ -16,6 +17,7 @@ final class InstallController: ObservableObject {
         installTask?.cancel(); installTask = nil
         installServer?.stop(); installServer = nil
         InstallKeepAlive.shared.stop()
+        endSetupBackground()
         installStatus = "تم إيقاف طلب التثبيت. ملف IPA الموقّع يبقى محفوظًا."
     }
 
@@ -23,6 +25,11 @@ final class InstallController: ObservableObject {
         cancel()
         let generation = UUID(); installGeneration = generation
         installStatus = "التحقق من ملف IPA وخدمة التثبيت…"
+        // Continue the manifest handoff within iOS's finite background budget,
+        // overlapping the signing assertion rather than leaving a suspension gap.
+        setupBackground = UIApplication.shared.beginBackgroundTask(withName: "idk plus install manifest") { [weak self] in
+            self?.cancel()
+        }
         installTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -71,6 +78,7 @@ final class InstallController: ObservableObject {
                 installStatus = "أُرسل طلب التثبيت إلى iOS. وافق على النافذة إن ظهرت وأبقِ idk plus مفتوحًا أثناء النقل."
                 let opened = await UIApplication.shared.open(url, options: [:])
                 guard opened else { throw NextFailure("iOS لم يفتح طلب التثبيت. يمكنك تصدير IPA الموقّع.") }
+                endSetupBackground()
                 try await Task.sleep(nanoseconds: 10 * 60 * 1_000_000_000)
                 guard installGeneration == generation else { return }
                 installStatus = "انتهت مهلة نقل التثبيت. ملف IPA الموقّع محفوظ ويمكن إعادة الطلب."
@@ -78,9 +86,17 @@ final class InstallController: ObservableObject {
                 installTask = nil
             } catch {
                 guard installGeneration == generation, !Task.isCancelled else { return }
+                endSetupBackground()
                 installStatus = "تعذر التثبيت: \(error.localizedDescription)\nالنسخة الموقّعة تبقى في المكتبة للتصدير أو إعادة المحاولة."
                 installServer?.stop(); installServer = nil; InstallKeepAlive.shared.stop(); installTask = nil
             }
+        }
+    }
+
+    private func endSetupBackground() {
+        if setupBackground != .invalid {
+            UIApplication.shared.endBackgroundTask(setupBackground)
+            setupBackground = .invalid
         }
     }
 
