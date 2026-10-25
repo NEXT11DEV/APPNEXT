@@ -129,3 +129,16 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  result=subprocess.run([str(driver),str(source),str(d/'protected.p12'),'test-only',str(d/'test.mobileprovision'),str(output),str(work),'encrypted'])
  assert result.returncode!=0 and not output.exists() and not (work/'idk_prepared.ready').exists()
  print('PASS prepared native pipeline: encrypted Mach-O cannot receive a prepared marker or reach signing')
+
+ work=d/'duplicate-work';work.mkdir();output=d/'duplicate-output.ipa'
+ original=(d/'input.ipa').read_bytes()
+ run([driver,d/'input.ipa',d/'protected.p12','test-only',d/'test.mobileprovision',output,work,'duplicate'])
+ assert (d/'input.ipa').read_bytes()==original
+ with zipfile.ZipFile(output) as z:
+  info=plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))
+  assert info['CFBundleIdentifier']=='app.idkplus.smokeab'
+  assert info['CFBundleDisplayName']=='Smoke ab'
+  assert z.read('Payload/Smoke.app/embedded.mobileprovision')==original_profile
+  extracted=d/'duplicate-verified';z.extractall(extracted)
+ verify_signature(extracted/'Payload/Smoke.app',openssl,d)
+ print('PASS native duplicate: two-character identifier suffix and distinct display name are cryptographically signed; original archive and profile unchanged')

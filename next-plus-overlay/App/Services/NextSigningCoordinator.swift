@@ -25,7 +25,7 @@ final class NextSigningCoordinator: ObservableObject {
     private var waitingRequest: Request?
     private var operationID = UUID()
 
-    enum Request { case repository(RepoApp), imported(URL) }
+    enum Request { case repository(RepoApp), repositoryCopy(RepoApp), imported(URL), importedCopy(URL) }
     var busy: Bool { [.downloading, .inspecting, .signing].contains(phase) }
 
     init(certificates: CertificateStore, profiles: ProfileStore, history: HistoryStore, installer: InstallController) {
@@ -50,7 +50,7 @@ final class NextSigningCoordinator: ObservableObject {
         let work = staging.tempDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let output = history.signedDir.appendingPathComponent("next-\(UUID().uuidString).ipa")
         let appName: String
-        switch request { case .repository(let app): appName = app.name; case .imported(let url): appName = url.deletingPathExtension().lastPathComponent }
+        switch request { case .repository(let app), .repositoryCopy(let app): appName = app.name; case .imported(let url), .importedCopy(let url): appName = url.deletingPathExtension().lastPathComponent }
         let currentOperation = UUID(); operationID = currentOperation
         title = appName
         phase = .inspecting; detail = "فحص ملفات التوقيع…"
@@ -68,7 +68,7 @@ final class NextSigningCoordinator: ObservableObject {
                 recordDuration("فحص الشهادة", since: operationStarted)
                 let ipa: URL
                 switch request {
-                case .repository(let app):
+                case .repository(let app), .repositoryCopy(let app):
                     guard let url = app.downloadURL, ["https", "http"].contains(url.scheme?.lowercased() ?? "") else {
                         throw NextFailure("هذا التطبيق لا يحتوي رابط IPA صالحًا.")
                     }
@@ -86,7 +86,7 @@ final class NextSigningCoordinator: ObservableObject {
                     let bytes = Int64((try? ipa.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
                     recordDuration("التنزيل", since: downloadStarted)
                     record("حجم IPA: \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))؛ متوسط التنزيل: \(ByteCountFormatter.string(fromByteCount: Int64(Double(bytes) / elapsed), countStyle: .file))/ثانية")
-                case .imported(let source):
+                case .imported(let source), .importedCopy(let source):
                     let scoped = source.startAccessingSecurityScopedResource()
                     defer { if scoped { source.stopAccessingSecurityScopedResource() } }
                     let target = work.appendingPathComponent("input.ipa")
@@ -104,7 +104,21 @@ final class NextSigningCoordinator: ObservableObject {
                 guard inspection.encryptedExecutableCount == 0 else { throw NextFailure("التطبيق مشفّر من App Store؛ إعادة التوقيع وحدها لا تكفي لتثبيته.") }
                 guard inspection.preparedFolder != nil else { throw NextFailure("تعذر تجهيز ملفات التطبيق للتوقيع.") }
                 record("فُكّ IPA مرة واحدة؛ التوقيع يستخدم نفس الملفات المفحوصة")
-                if let notice = NextSigningPolicy.profileNotice(bundleID: inspection.bundleIdentifier,
+                let targetIdentifier: String
+                let targetName: String
+                switch request {
+                case .repositoryCopy, .importedCopy:
+                    guard let duplicate = NextSigningPolicy.duplicateIdentifier(inspection.bundleIdentifier,
+                        existing: Set(history.records.map(\.bundleId))) else {
+                        throw NextFailure("تعذر إنشاء معرّف نسخة جديد بحرفين. جرّب تطبيقًا آخر أو راجع النسخ السابقة.")
+                    }
+                    targetIdentifier = duplicate
+                    targetName = inspection.appName + " " + String(duplicate.suffix(2))
+                    record("نسخة إضافية: \(inspection.bundleIdentifier) ← \(duplicate)")
+                default:
+                    targetIdentifier = ""; targetName = ""
+                }
+                if let notice = NextSigningPolicy.profileNotice(bundleID: targetIdentifier.isEmpty ? inspection.bundleIdentifier : targetIdentifier,
                     applicationIdentifier: profile.applicationIdentifier) {
                     signingNotice = notice
                     record(notice)
@@ -115,7 +129,7 @@ final class NextSigningCoordinator: ObservableObject {
                 let signingStarted = ProcessInfo.processInfo.systemUptime
                 let result = await Task.detached(priority: .userInitiated) {
                     SigningService.sign(ipa: ipa, p12: certificateURL, password: password, profile: profileURL,
-                        bundleId: "", displayName: "", shortVersion: "", icon: nil, output: output,
+                        bundleId: targetIdentifier, displayName: targetName, shortVersion: "", icon: nil, output: output,
                         tempDir: work, removeExtensions: false, enableDocuments: false, preparedFolder: inspection.preparedFolder)
                 }.value
                 recordDuration("التوقيع وتجهيز IPA", since: signingStarted)
@@ -126,8 +140,8 @@ final class NextSigningCoordinator: ObservableObject {
                 }
                 try Task.checkCancellation()
                 signedURL = output; signedBundle = result.signedBundleId; signedVersion = result.signedVersion
-                title = inspection.appName
-                history.append(inputName: inspection.appName, outputName: output.lastPathComponent,
+                title = targetName.isEmpty ? inspection.appName : targetName
+                history.append(inputName: title, outputName: output.lastPathComponent,
                                bundleId: result.signedBundleId, version: result.signedVersion, certificateCN: certificate.commonName)
                 phase = .ready; detail = "تم التوقيع. جاري فتح طلب التثبيت؛ وافق على نافذة iOS عند ظهورها."
                 record("نجح التوقيع؛ النسخة محفوظة في المكتبة")

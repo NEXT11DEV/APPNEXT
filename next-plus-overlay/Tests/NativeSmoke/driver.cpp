@@ -22,7 +22,9 @@ int main(int argc, char** argv) {
             std::ofstream proof(prepared + "/Payload/Smoke.app/prepared-proof.txt");
             proof << "prepared tree was reused";
         }
-        status = forgesign_sign_prepared_ipa(argv[1], argv[2], argv[3], argv[4], nullptr, nullptr, nullptr,
+        const char* copiedID = mode == "duplicate" ? "app.idkplus.smokeab" : nullptr;
+        const char* copiedName = mode == "duplicate" ? "Smoke ab" : nullptr;
+        status = forgesign_sign_prepared_ipa(argv[1], argv[2], argv[3], argv[4], copiedID, copiedName, nullptr,
             nullptr, argv[5], argv[6], 0, 0, message, sizeof(message), bid, sizeof(bid), version, sizeof(version), prepared.c_str());
         if (mode == "prepared" && status == 0) {
             std::string replay = std::string(argv[5]) + ".replay";

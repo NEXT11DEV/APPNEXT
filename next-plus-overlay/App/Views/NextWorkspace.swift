@@ -219,14 +219,24 @@ struct NextWorkspace: View {
                     if let size = app.size { Text("·"); Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
                 }.font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            Button {
-                signing.start(.repository(app))
-                if signing.busy { tab = 1 }
-            } label: {
-                Text("تثبيت").font(.system(size: 13, weight: .bold))
-                    .frame(width: 72, height: 36).background(NextStyle.purple.opacity(0.11), in: Capsule())
-            }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
-                .accessibilityLabel("تنزيل وتوقيع \(app.name)")
+            VStack(spacing: 6) {
+                Button {
+                    signing.start(.repository(app))
+                    if signing.busy { tab = 1 }
+                } label: {
+                    Text("تثبيت").font(.system(size: 13, weight: .bold))
+                        .frame(width: 72, height: 36).background(NextStyle.purple.opacity(0.11), in: Capsule())
+                }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
+                    .accessibilityLabel("تنزيل وتوقيع \(app.name)")
+                Button {
+                    signing.start(.repositoryCopy(app))
+                    if signing.busy { tab = 1 }
+                } label: {
+                    Label("تكرار", systemImage: "plus.square.on.square")
+                        .font(.system(size: 11, weight: .semibold)).frame(width: 72, height: 28)
+                }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
+                    .accessibilityLabel("تثبيت نسخة إضافية من \(app.name)")
+            }
         }.padding(14).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
     }
 
@@ -274,6 +284,10 @@ struct NextWorkspace: View {
                             HStack {
                                 Button("تثبيت") { installer.install(ipa: history.outputURL(for: record), bundleId: record.bundleId, version: record.version, title: record.inputName) }
                                     .buttonStyle(.borderedProminent).disabled(!history.fileExists(for: record) || signing.busy)
+                                if history.fileExists(for: record) {
+                                    Button("تكرار") { signing.start(.importedCopy(history.outputURL(for: record))) }
+                                        .buttonStyle(.bordered).disabled(signing.busy)
+                                }
                                 if history.fileExists(for: record) { NextShareButton(item: history.outputURL(for: record)) { Label("مشاركة IPA", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered) }
                             }
                         }.padding(18).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))

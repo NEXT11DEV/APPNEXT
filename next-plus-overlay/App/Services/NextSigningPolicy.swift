@@ -39,6 +39,18 @@ enum NextSigningPolicy {
         return "معرّف التطبيق: \(bundleID)\nمعرّف ملف التوقيع: \(applicationIdentifier ?? "")\nسيُستخدم ملف التوقيع كما هو مع الحفاظ على معرّف التطبيق. اختلاف المعرّفين وحده لا يمنع محاولة التوقيع؛ قبول التثبيت يحدده iOS."
     }
 
+    /// Keep the actual IPA identifier, appending exactly two ASCII letters.
+    /// Avoid every identifier previously signed by this installation.
+    static func duplicateIdentifier(_ original: String, existing: Set<String>) -> String? {
+        guard !original.isEmpty, original.utf8.count <= 253 else { return nil }
+        let letters = Array("abcdefghijklmnopqrstuvwxyz")
+        for value in (0..<(26 * 26)).shuffled() {
+            let candidate = original + String(letters[value / 26]) + String(letters[value % 26])
+            if !existing.contains(candidate) { return candidate }
+        }
+        return nil
+    }
+
     static func byteRange(_ value: String?, size: UInt64) -> (start: UInt64, end: UInt64)? {
         guard size > 0 else { return nil }
         guard let value else { return (0, size - 1) }

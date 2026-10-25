@@ -16,6 +16,18 @@ import Foundation
         precondition(mismatch.contains("com.gitswift.SwiftServer") && mismatch.contains("app.idkplus.store"))
         precondition(NextSigningPolicy.profileNotice(bundleID: "app.example", applicationIdentifier: nil)!.contains("سيتحقق محرك"))
         precondition(mismatch.contains("لا يمنع محاولة التوقيع"))
+        let baseID = "com.example.app"
+        var copies = Set<String>()
+        for _ in 0..<676 {
+            let next = NextSigningPolicy.duplicateIdentifier(baseID, existing: copies)!
+            precondition(next.hasPrefix(baseID) && next.count == baseID.count + 2)
+            precondition(next.suffix(2).allSatisfy { ("a"..."z").contains(String($0)) })
+            precondition(copies.insert(next).inserted)
+        }
+        precondition(NextSigningPolicy.duplicateIdentifier(baseID, existing: copies) == nil)
+        precondition(NextSigningPolicy.duplicateIdentifier("", existing: []) == nil)
+        precondition(NextSigningPolicy.duplicateIdentifier(String(repeating: "a", count: 254), existing: []) == nil)
+        print("PASS: two-letter duplicate IDs preserve original prefix, avoid all 676 collisions, and reject exhausted/oversized identifiers")
         for invalid in ["bytes=99-100", "bytes=4-2", "bytes=a-", "bytes=0-3,4-6", "bytes=-0", "bytes=0-x"] {
             precondition(NextSigningPolicy.byteRange(invalid, size: 10) == nil)
         }

@@ -32,3 +32,5 @@ Retain the upstream source licenses. This app retains the original signing engin
 - Optional real download/signing notifications are permission-gated and bounded to 20-percent download changes. A finite UIKit background task covers the operation; expiry cancels it and ends the assertion.
 - The standard iOS installation confirmation still opens after signing through the existing manifest endpoint. Network speed, iOS acceptance and unlimited background signing are not promised.
 - Buyer certificate automation is documented in Docs/BuyerEnrollment.ar.md; no fictional certificate service or private-key distribution backend has been activated.
+
+- Duplicate buttons in the store and signed library append two unused lowercase letters to the actual inspected IPA bundle identifier, sign a distinct display name, and keep the input archive unchanged. All 676 two-letter combinations are collision-checked against this installation's signing history. iOS acceptance still depends on certificate/profile compatibility.
