@@ -37,11 +37,30 @@ struct NextWorkspace: View {
 
     @State private var allApps: [RepoApp] = []
     @State private var apps: [RepoApp] = []
+    @State private var visibleLimit = NextCatalogIndex.pageSize
+    @State private var hasMoreApps = false
+
+    private func resetPage() {
+        visibleLimit = NextCatalogIndex.pageSize
+        updatePage()
+    }
+
+    private func updatePage() {
+        let page = NextCatalogIndex.page(allApps, query: query, category: category, limit: visibleLimit)
+        apps = page.apps
+        hasMoreApps = page.hasMore
+    }
+
+    private func showMore() {
+        guard hasMoreApps else { return }
+        visibleLimit += NextCatalogIndex.pageSize
+        updatePage()
+    }
 
     private func rebuildCatalog(repositories: [Repository], catalog: [UUID: RepoSource]) {
         let index = NextCatalogIndex.flatten(repositories: repositories, catalog: catalog)
         allApps = index
-        apps = NextCatalogIndex.filter(index, query: query, category: category)
+        resetPage()
     }
 
     var body: some View {
@@ -56,8 +75,8 @@ struct NextWorkspace: View {
         .onReceive(repositories.$repositories) { repositories in
             rebuildCatalog(repositories: repositories, catalog: self.repositories.catalog)
         }
-        .onChange(of: query) { _ in apps = NextCatalogIndex.filter(allApps, query: query, category: category) }
-        .onChange(of: category) { _ in apps = NextCatalogIndex.filter(allApps, query: query, category: category) }
+        .onChange(of: query) { _ in resetPage() }
+        .onChange(of: category) { _ in resetPage() }
         .navigationViewStyle(StackNavigationViewStyle())
         .tint(NextStyle.purple)
         .sheet(isPresented: $showSources) { SourcesView() }
@@ -91,8 +110,10 @@ struct NextWorkspace: View {
 
     private var store: some View {
         NavigationView {
+            ScrollViewReader { scroll in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    Color.clear.frame(height: 0).id("catalog-top")
                     HStack(spacing: 13) {
                         Image("IDKPlusIcon").resizable().scaledToFit().frame(width: 52, height: 52)
                             .clipShape(RoundedRectangle(cornerRadius: 15))
@@ -128,7 +149,9 @@ struct NextWorkspace: View {
                     }
                     HStack {
                         Text(query.isEmpty ? "اكتشف التطبيقات" : "نتائج البحث").font(.title3.bold())
-                        Spacer(); Text("\(apps.count) تطبيق").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(query.isEmpty ? "عرض \(apps.count) من \(allApps.count)" : "\(apps.count) نتيجة\(hasMoreApps ? "+" : "")")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     if apps.isEmpty {
                         VStack(spacing: 12) {
@@ -139,7 +162,17 @@ struct NextWorkspace: View {
                             Button("إدارة المصادر") { showSources = true }.buttonStyle(.borderedProminent)
                         }.frame(maxWidth: .infinity).padding(28).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 22))
                     }
-                    LazyVStack(spacing: 12) { ForEach(apps) { app in appCard(app) } }
+                    LazyVStack(spacing: 12) {
+                        ForEach(apps) { app in
+                            appCard(app).onAppear {
+                                if app.id == apps.last?.id { showMore() }
+                            }
+                        }
+                    }
+                    if hasMoreApps {
+                        Button("عرض ٣٠ تطبيق إضافي") { showMore() }
+                            .font(.subheadline).frame(maxWidth: .infinity).padding(.vertical, 12)
+                    }
                     if !repositories.fetchError.isEmpty {
                         Text("تعذر تحديث بعض المصادر. افتح إدارة المصادر لعرض تفاصيلها.")
                             .font(.footnote).foregroundStyle(.orange)
@@ -147,11 +180,14 @@ struct NextWorkspace: View {
                 }.padding(20).padding(.bottom, 20)
             }
             .background(NextStyle.page).navigationBarHidden(true)
+            .onChange(of: query) { _ in scroll.scrollTo("catalog-top", anchor: .top) }
+            .onChange(of: category) { _ in scroll.scrollTo("catalog-top", anchor: .top) }
             .refreshable { await refresh() }
             .task {
                 guard !refreshed else { return }; refreshed = true
                 while !repositories.catalogCacheLoaded { try? await Task.sleep(nanoseconds: 20_000_000) }
                 await refresh()
+            }
             }
         }
     }
@@ -283,7 +319,7 @@ struct NextWorkspace: View {
                         Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("idk plus").font(.title2.bold())
-                            Text("1.0.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("1.1.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }

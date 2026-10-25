@@ -27,6 +27,7 @@ final class CertificateStore: ObservableObject {
 
     private let dir: URL
     private let indexURL: URL
+    private var sessionPasswords: [UUID: String] = [:]
 
     private struct Index: Codable {
         var certificates: [CertificateRecord] = []
@@ -50,7 +51,13 @@ final class CertificateStore: ObservableObject {
     }
 
     func savedPassword(for record: CertificateRecord) -> String? {
-        PasswordVault.password(for: record.id)
+        sessionPasswords[record.id] ?? PasswordVault.password(for: record.id)
+    }
+
+    /// Retain a verified password only for this process when the subscriber
+    /// did not opt into persistent storage at import time.
+    func cacheVerifiedPassword(_ password: String, for record: CertificateRecord) {
+        sessionPasswords[record.id] = password
     }
 
     enum ImportError: LocalizedError {
@@ -111,6 +118,7 @@ final class CertificateStore: ObservableObject {
             record.hasSavedPassword = true
         }
 
+        sessionPasswords[record.id] = password
         certificates.append(record)
         selectedID = record.id
         save()
@@ -118,6 +126,7 @@ final class CertificateStore: ObservableObject {
     }
 
     func delete(_ record: CertificateRecord) {
+        sessionPasswords[record.id] = nil
         PasswordVault.delete(for: record.id)
         try? FileManager.default.removeItem(at: fileURL(for: record))
         certificates.removeAll { $0.id == record.id }

@@ -34,7 +34,7 @@ jobs:
           (resources/'IDKPlusCatalog.json').write_bytes(gzip.decompress(b''.join(p.read_bytes() for p in sorted(pathlib.Path('idk-assets').glob('catalog-*.part')))))
           icon=b''.join(p.read_bytes() for p in sorted(pathlib.Path('idk-assets').glob('icon-*.part')))
           import hashlib
-          assert hashlib.sha256(icon).hexdigest()=='45676ce9e0e38e3f57857226823e8b60e176c8377fe276d3cd88d6b81ad203b9'
+          assert hashlib.sha256(icon).hexdigest()=='23992e52399b1b245419b8959844718513d407281e2bd9b115800ed64c6c6b9f'
           (root/'App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png').write_bytes(icon)
           (root/'App/Assets.xcassets/IDKPlusIcon.imageset/IDKPlusIcon.png').write_bytes(icon)
           import shutil
@@ -110,6 +110,14 @@ jobs:
             xcrun simctl io "$DEVICE" screenshot "build/screenshots/tab-$TAB.png"
             xcrun simctl terminate "$DEVICE" app.idkplus.store.uisim
           done
+          SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_IDK_UI_SETUP=1 xcrun simctl launch "$DEVICE" app.idkplus.store.uisim
+          sleep 3
+          xcrun simctl io "$DEVICE" screenshot build/screenshots/setup.png
+          xcrun simctl terminate "$DEVICE" app.idkplus.store.uisim
+          xcrun simctl launch "$DEVICE" app.idkplus.store.uisim
+          sleep 3
+          xcrun simctl io "$DEVICE" screenshot build/screenshots/activation.png
+          xcrun simctl terminate "$DEVICE" app.idkplus.store.uisim
       - uses: actions/upload-artifact@v4
         if: always()
         with:
