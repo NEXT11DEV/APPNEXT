@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  sources=list((root/'vendor/zsign').glob('*.cpp'))+list((root/'vendor/zsign/common').glob('*.cpp'))
  sources=[s for s in sources if s.name!='zsign.cpp']
  driver=d/'bridge-smoke'
- run(['clang++','-std=c++11','-Wno-deprecated-declarations','-DZSIGN_VERSION="test"',
+ run(['clang++','-O2','-std=c++11','-Wno-deprecated-declarations','-DZSIGN_VERSION="test"',
       '-I'+str(root/'Bridge'),'-I'+str(root/'vendor/zsign'),'-I'+str(root/'vendor/zsign/common'),
       '-I'+str(ssl/'include'), root/'Bridge/zsign_wrapper.cpp',root/'Tests/NativeSmoke/driver.cpp',*sources,*objs,
       '-L'+str(ssl/'lib'),'-lssl','-lcrypto','-lz','-framework','CoreFoundation','-o',driver])
@@ -91,3 +91,41 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  assert sign('empty.p12','','invalid-output.ipa','invalid.ipa').returncode!=0
  print('PASS native bridge: rejects wrong password and invalid archive')
 
+
+ # Prepared pipeline: verify the reused extraction and unchanged input, then
+ # reject stale archives, escaped directories, replay, and encrypted fixtures.
+ for name,password in [('protected','test-only'),('empty','')]:
+  work=d/('prepared-work-'+name);work.mkdir()
+  output=d/('prepared-'+name+'.ipa')
+  original=(d/'input.ipa').read_bytes()
+  run([driver,d/'input.ipa',d/(name+'.p12'),password,d/'test.mobileprovision',output,work,'prepared'])
+  assert (d/'input.ipa').read_bytes()==original
+  assert not (work/'idk_prepared').exists()
+  assert not (work/'idk_prepared.ready').exists()
+  with zipfile.ZipFile(output) as z:
+   assert z.read('Payload/Smoke.app/prepared-proof.txt')==b'prepared tree was reused'
+   assert not any('idk_prepared.ready' in n for n in z.namelist())
+   extracted=d/('prepared-verify-'+name);z.extractall(extracted)
+  verify_signature(extracted/'Payload/Smoke.app',openssl,d)
+  print('PASS prepared native pipeline: one extraction reused, protected/empty passwords, CMS/resources valid, original input unchanged, replay rejected')
+ for mode in ['stale','outside']:
+  source=d/(mode+'-input.ipa');source.write_bytes((d/'input.ipa').read_bytes())
+  work=d/('reject-'+mode);work.mkdir();output=d/(mode+'-output.ipa')
+  result=subprocess.run([str(driver),str(source),str(d/'protected.p12'),'test-only',str(d/'test.mobileprovision'),str(output),str(work),mode])
+  assert result.returncode!=0 and not output.exists()
+  print('PASS prepared native pipeline: rejects '+mode+' extraction')
+ binary=bytearray((app/'Smoke').read_bytes())
+ ncmds,sizeofcmds=struct.unpack_from('<II',binary,16)
+ offset=32+sizeofcmds
+ assert binary[offset:offset+24]==bytes(24),'Expected Mach-O header padding'
+ binary[offset:offset+24]=struct.pack('<IIIIII',0x2c,24,0,0,1,0)
+ struct.pack_into('<II',binary,16,ncmds+1,sizeofcmds+24)
+ (app/'Smoke').write_bytes(binary)
+ source=d/'encrypted-input.ipa'
+ with zipfile.ZipFile(source,'w',zipfile.ZIP_DEFLATED) as z:
+  for file in (d/'Payload').rglob('*'):
+   if file.is_file():z.write(file,file.relative_to(d))
+ work=d/'encrypted-work';work.mkdir();output=d/'encrypted-output.ipa'
+ result=subprocess.run([str(driver),str(source),str(d/'protected.p12'),'test-only',str(d/'test.mobileprovision'),str(output),str(work),'encrypted'])
+ assert result.returncode!=0 and not output.exists() and not (work/'idk_prepared.ready').exists()
+ print('PASS prepared native pipeline: encrypted Mach-O cannot receive a prepared marker or reach signing')

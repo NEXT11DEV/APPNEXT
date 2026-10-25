@@ -14,6 +14,7 @@ struct NextWorkspace: View {
     @ObservedObject var installer: InstallController
     @ObservedObject var repositories: RepositoryStore
     @StateObject private var signing: NextSigningCoordinator
+    @AppStorage("idk.download-notifications") private var downloadNotifications = true
     @State private var tab = 0
     @State private var query = ""
     @State private var showSources = false
@@ -319,7 +320,7 @@ struct NextWorkspace: View {
                         Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("idk plus").font(.title2.bold())
-                            Text("1.1.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("1.2.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
@@ -338,6 +339,7 @@ struct NextWorkspace: View {
                     Text("اختَر الشهادة وملفها المتطابقين. التطبيق يقبل الشهادات بدون كلمة مرور أيضًا.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("المتجر") {
+                    Toggle("إشعارات التنزيل والتوقيع", isOn: $downloadNotifications)
                     Button { showSources = true } label: { settingRow("مصادر التطبيقات", value: "\(repositories.visibleRepositories.count) مصدر", icon: "shippingbox.fill") }
                     Button { showImporter = true; tab = 1 } label: { settingRow("استيراد IPA", value: "من ملفات جهازك", icon: "square.and.arrow.down.fill") }
                 }

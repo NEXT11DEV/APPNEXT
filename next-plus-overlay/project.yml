@@ -16,6 +16,14 @@ settings:
     ENABLE_BITCODE: "NO"
     ENABLE_DEBUG_DYLIB: "NO"
 
+  configs:
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: -Onone
+    Release:
+      SWIFT_OPTIMIZATION_LEVEL: -O
+      SWIFT_COMPILATION_MODE: wholemodule
+      GCC_OPTIMIZATION_LEVEL: 2
+
 targets:
   iStore:
     type: application
@@ -70,7 +78,6 @@ targets:
         OTHER_LDFLAGS:
           - -lcrypto
           - -lssl
-        SWIFT_OPTIMIZATION_LEVEL: -Onone
         GCC_PREPROCESSOR_DEFINITIONS:
           - ZSIGN_VERSION=0.1.0
 

@@ -20,6 +20,7 @@ final class NextSigningCoordinator: ObservableObject {
     let history: HistoryStore
     let installer: InstallController
     private let staging = SigningService()
+    private let activity = NextOperationActivity()
     private var task: Task<Void, Never>?
     private var waitingRequest: Request?
     private var operationID = UUID()
@@ -55,7 +56,8 @@ final class NextSigningCoordinator: ObservableObject {
         phase = .inspecting; detail = "فحص ملفات التوقيع…"
         task = Task {
             let operationStarted = ProcessInfo.processInfo.systemUptime
-            defer { task = nil; try? FileManager.default.removeItem(at: work) }
+            activity.begin(title: appName) { [weak self] in self?.cancel() }
+            defer { activity.end(); task = nil; try? FileManager.default.removeItem(at: work) }
             do {
                 try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
                 guard let info = await Task.detached(priority: .userInitiated, operation: {
@@ -77,6 +79,7 @@ final class NextSigningCoordinator: ObservableObject {
                         Task { @MainActor in
                             guard let self, self.operationID == currentOperation, self.phase == .downloading else { return }
                             self.progress = value
+                            self.activity.progress(value)
                         }
                     }
                     let elapsed = max(ProcessInfo.processInfo.systemUptime - downloadStarted, 0.001)
@@ -92,12 +95,15 @@ final class NextSigningCoordinator: ObservableObject {
                 }
                 try Task.checkCancellation()
                 phase = .inspecting; progress = nil; detail = "فحص IPA وصلاحياته…"; record("اكتمل تنزيل/استيراد الملف؛ بدء فحص IPA")
+                activity.stage("اكتمل التنزيل؛ جاري فحص التطبيق…")
                 let inspectionStarted = ProcessInfo.processInfo.systemUptime
                 let inspection = try await Task.detached(priority: .userInitiated) {
-                    try IPAPreflightService.inspect(ipa: ipa, temporaryDirectory: work).get()
+                    try IPAPreflightService.inspect(ipa: ipa, temporaryDirectory: work, retainForSigning: true).get()
                 }.value
                 recordDuration("فحص IPA", since: inspectionStarted)
                 guard inspection.encryptedExecutableCount == 0 else { throw NextFailure("التطبيق مشفّر من App Store؛ إعادة التوقيع وحدها لا تكفي لتثبيته.") }
+                guard inspection.preparedFolder != nil else { throw NextFailure("تعذر تجهيز ملفات التطبيق للتوقيع.") }
+                record("فُكّ IPA مرة واحدة؛ التوقيع يستخدم نفس الملفات المفحوصة")
                 if let notice = NextSigningPolicy.profileNotice(bundleID: inspection.bundleIdentifier,
                     applicationIdentifier: profile.applicationIdentifier) {
                     signingNotice = notice
@@ -105,11 +111,12 @@ final class NextSigningCoordinator: ObservableObject {
                 }
                 try Task.checkCancellation()
                 phase = .signing; detail = "توقيع التطبيق داخل الآيفون…"; record("بدء محرك zsign")
+                activity.stage("جاري توقيع التطبيق داخل الآيفون…")
                 let signingStarted = ProcessInfo.processInfo.systemUptime
                 let result = await Task.detached(priority: .userInitiated) {
                     SigningService.sign(ipa: ipa, p12: certificateURL, password: password, profile: profileURL,
                         bundleId: "", displayName: "", shortVersion: "", icon: nil, output: output,
-                        tempDir: work, removeExtensions: false, enableDocuments: false)
+                        tempDir: work, removeExtensions: false, enableDocuments: false, preparedFolder: inspection.preparedFolder)
                 }.value
                 recordDuration("التوقيع وتجهيز IPA", since: signingStarted)
                 guard result.ok else { throw NextFailure(result.message) }
@@ -125,12 +132,14 @@ final class NextSigningCoordinator: ObservableObject {
                 phase = .ready; detail = "تم التوقيع. جاري فتح طلب التثبيت؛ وافق على نافذة iOS عند ظهورها."
                 record("نجح التوقيع؛ النسخة محفوظة في المكتبة")
                 recordDuration("الإجمالي قبل طلب التثبيت", since: operationStarted)
+                activity.stage("اكتمل التوقيع. وافق على نافذة التثبيت، أو افتح idk plus لإعادة طلبها.")
                 installSigned()
             } catch is CancellationError {
                 try? FileManager.default.removeItem(at: output)
                 phase = .idle; detail = "تم إلغاء العملية."; record("إلغاء العملية")
             } catch {
                 try? FileManager.default.removeItem(at: output)
+                activity.stage("تعذر إكمال العملية: " + error.localizedDescription)
                 fail(error.localizedDescription)
             }
         }

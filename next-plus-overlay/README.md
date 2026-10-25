@@ -1,4 +1,4 @@
-# idk plus 1.1.0
+# idk plus 1.2.0
 
 iOS 15+ app library and on-device IPA signing, derived from NEXT PlUS 1.2.1.
 
@@ -24,3 +24,11 @@ Retain the upstream source licenses. This app retains the original signing engin
 - Catalog and search retain 30 visible matches initially, extending the visible window by 30 on scroll or the explicit load-more button. A search scans the entire catalog, not only the visible page.
 - The JSON metadata snapshot is still decoded locally once; paging limits list rows and associated icon loads, rather than changing the JSON into a remote paged API.
 - New navy/cyan idk plus icon. Bundle ID and IDK1 license public key remain unchanged.
+
+## 1.2.0
+
+- Prepared signing reuses the exact extraction already inspected for encrypted Mach-O files. A one-shot sidecar binds the private working folder to the original archive file identity; stale, replayed or escaped paths are rejected. Legacy inspection/signing remain available.
+- Swift Release uses -O/whole-module compilation and native Release uses -O2. Debug remains unoptimized for previews.
+- Optional real download/signing notifications are permission-gated and bounded to 20-percent download changes. A finite UIKit background task covers the operation; expiry cancels it and ends the assertion.
+- The standard iOS installation confirmation still opens after signing through the existing manifest endpoint. Network speed, iOS acceptance and unlimited background signing are not promised.
+- Buyer certificate automation is documented in Docs/BuyerEnrollment.ar.md; no fictional certificate service or private-key distribution backend has been activated.
