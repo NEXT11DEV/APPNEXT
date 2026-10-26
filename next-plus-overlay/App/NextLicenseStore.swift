@@ -15,6 +15,13 @@ final class NextLicenseStore: ObservableObject {
         let expires: Int64
     }
 
+    struct DeliveredCredential: Decodable {
+        let p12: String
+        let profile: String
+        let password: String
+    }
+    @Published var deliveredCredential: DeliveredCredential?
+
     static let publicKeyBase64 = "HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA="
     @Published private(set) var license: License?
     @Published var message = ""
@@ -92,15 +99,27 @@ final class NextLicenseStore: ObservableObject {
                 else { message = "خدمة التفعيل غير متاحة حاليًا. أعد المحاولة لاحقًا." }
                 return
             }
-            struct Reply: Decodable { let token: String }
-            guard data.count < 16_384, let reply = try? JSONDecoder().decode(Reply.self, from: data) else {
+            struct Reply: Decodable { let token: String; let credentials: DeliveredCredential? }
+            guard data.count < 600_000, let reply = try? JSONDecoder().decode(Reply.self, from: data) else {
                 message = "رد غير صحيح من خدمة التفعيل."; return
             }
             // An HTTP 200 alone never unlocks the store: verify signature, app, device and dates.
             activate(reply.token)
+            if license != nil {
+                _ = Self.write(value, account: "short-code", service: vault)
+                deliveredCredential = reply.credentials
+            }
         } catch {
             message = "تعذر الاتصال بخدمة التفعيل. تأكد من الإنترنت وأعد المحاولة."
         }
+    }
+
+    func fetchAssignedCredential() async {
+        guard let code = Self.read("short-code", service: vault) else {
+            message = "أعد إدخال كودك القصير حتى نجلب الشهادة المرتبطة به."
+            return
+        }
+        await activateInput(code)
     }
 
     private func verify(_ token: String) -> License? {

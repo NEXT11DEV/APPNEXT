@@ -5,13 +5,16 @@ import SwiftUI
 struct NextCredentialGate<Content: View>: View {
     @ObservedObject var certificates: CertificateStore
     @ObservedObject var profiles: ProfileStore
+    @EnvironmentObject private var access: NextLicenseStore
     @Environment(\.scenePhase) private var scenePhase
+    @State private var deliveredVerifiedSelection: String?
     @State private var verifiedSelection: String?
     @State private var password = ""
     @State private var checking = false
     @State private var error: String?
     @State private var showCertificates = false
     @State private var showProfiles = false
+    @State private var receivingCredential = false
     private let content: Content
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -54,10 +57,28 @@ struct NextCredentialGate<Content: View>: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 18))
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("إعداد توقيعك").font(.title2.bold())
-                                    Text("اشتراكك مفعّل. أضف ملفات التوقيع حتى تفتح المتجر.")
+                                    Text("اشتراكك مفعّل. نجلب الشهادة المرتبطة بكودك، أو تضيف ملفاتك يدويًا.")
                                         .font(.subheadline).foregroundStyle(.secondary)
                                 }
                             }.padding(.vertical, 8)
+                        }
+                        Section("شهادتك من المتجر") {
+                            Button {
+                                Task {
+                                    await access.fetchAssignedCredential()
+                                    if access.deliveredCredential == nil {
+                                        error = access.message.isEmpty ? "المالك لم يربط شهادة بهذا الكود بعد." : access.message
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Text(access.activating || receivingCredential ? "جاري جلب وفحص الشهادة…" : "جلب شهادتي من المتجر")
+                                    Spacer()
+                                    if access.activating || receivingCredential { ProgressView() }
+                                    else { Image(systemName: "arrow.down.doc.fill") }
+                                }
+                            }.disabled(checking || receivingCredential || access.activating)
+                            Text("إذا أضاف المالك ملفاتك في اللوحة، تصل تلقائيًا بعد إدخال كودك. نفحص الملفات قبل فتح المتجر.").font(.footnote).foregroundStyle(.secondary)
                         }
                         Section("١ · شهادة P12") {
                             Button { showCertificates = true } label: {
@@ -84,7 +105,7 @@ struct NextCredentialGate<Content: View>: View {
                                 }
                             }.disabled(checking || certificates.selected == nil || profiles.selected == nil)
                             if let error { Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled) }
-                            Text("نفحص فتح P12 وكلمة مروره وصلاحية الملفات وتوافق فريق التوقيع داخل جهازك. ملفاتك ما تنرفع لسيرفر.")
+                            Text("نفحص فتح P12 وكلمة مروره وصلاحية الملفات وتوافق فريق التوقيع داخل جهازك. الملفات اليدوية تُفحص محليًا، والملفات المرتبطة بكودك تُجلب من خدمة المتجر عبر HTTPS.")
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                     }.navigationTitle("idk plus")
@@ -93,13 +114,82 @@ struct NextCredentialGate<Content: View>: View {
         }
         .sheet(isPresented: $showCertificates, onDismiss: automaticVerification) { CertificatesSheet() }
         .sheet(isPresented: $showProfiles, onDismiss: automaticVerification) { ProfilesSheet() }
-        .task { automaticVerification() }
-        .onChange(of: selection) { _ in verifiedSelection = nil; error = nil; password = "" }
+        .task {
+            if !previewEnabled && (certificates.selected == nil || profiles.selected == nil) {
+                if access.deliveredCredential != nil { receiveDeliveredCredential() }
+                else { await access.fetchAssignedCredential() }
+            }
+            automaticVerification()
+        }
+        .onReceive(access.$deliveredCredential) { credential in
+            if credential != nil { receiveDeliveredCredential() }
+        }
+        .onChange(of: selection) { value in
+            error = nil; password = ""
+            if deliveredVerifiedSelection == value { verifiedSelection = value }
+            else { deliveredVerifiedSelection = nil; verifiedSelection = nil; automaticVerification() }
+        }
         .onChange(of: scenePhase) { phase in
             if phase == .active && !credentialsValid { automaticVerification() }
         }
         .onReceive(timer) { _ in
             if !credentialsValid { verifiedSelection = nil }
+        }
+    }
+
+    private func receiveDeliveredCredential() {
+        guard !checking, !receivingCredential, let delivery = access.deliveredCredential else { return }
+        receivingCredential = true; checking = true; error = nil
+        Task {
+            defer { receivingCredential = false; checking = false; access.deliveredCredential = nil }
+            guard delivery.p12.utf8.count <= 174_772, delivery.profile.utf8.count <= 349_536,
+                  let p12 = Data(base64Encoded: delivery.p12), !p12.isEmpty, p12.count <= 131_072,
+                  let profile = Data(base64Encoded: delivery.profile), !profile.isEmpty, profile.count <= 262_144,
+                  delivery.password.utf8.count <= 512 else {
+                error = "حزمة شهادة غير صالحة. اطلب من المالك إعادة رفع الملفات."; return
+            }
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let p12URL = folder.appendingPathComponent("idk-subscription.p12")
+                let profileURL = folder.appendingPathComponent("idk-subscription.mobileprovision")
+                try p12.write(to: p12URL, options: .completeFileProtection)
+                try profile.write(to: profileURL, options: .completeFileProtection)
+                let secret = delivery.password
+                let issue: String? = await Task.detached(priority: .userInitiated) {
+                    guard let cert = P12Inspector.inspect(url: p12URL, password: secret),
+                          let provision = ProvisioningProfileInspector.inspect(data: profile) else {
+                        return "ملفات الشهادة المرتبطة بكودك غير صالحة أو كلمة المرور غير صحيحة. اطلب من المالك مراجعتها."
+                    }
+                    if let start = cert.notBefore, start > Date() { return "شهادة المشترك لم يبدأ تاريخ صلاحيتها." }
+                    return NextSigningPolicy.credentials(certificateExpiry: cert.notAfter,
+                        profileExpiry: provision.expirationDate, certificateTeam: cert.teamID, profileTeam: provision.teamID)
+                }.value
+                if let issue { error = issue; return }
+                if let cert = certificates.selected, let provision = profiles.selected,
+                   (try? Data(contentsOf: certificates.fileURL(for: cert))) == p12,
+                   (try? Data(contentsOf: profiles.fileURL(for: provision))) == profile {
+                    certificates.cacheVerifiedPassword(secret, for: cert)
+                } else {
+                    let oldID = certificates.selectedID
+                    let certificate: CertificateRecord
+                    switch certificates.importCertificate(from: p12URL, password: secret, rememberPassword: true) {
+                    case .success(let record): certificate = record
+                    case .failure: error = "تعذر حفظ شهادة المشترك داخل الجهاز."; return
+                    }
+                    switch profiles.importProfile(from: profileURL) {
+                    case .success: break
+                    case .failure:
+                        certificates.delete(certificate)
+                        if let oldID { certificates.select(oldID) }
+                        error = "تعذر حفظ ملف provisioning داخل الجهاز."; return
+                    }
+                }
+                // Selection observers may reset state; perform the final existing gate check next turn.
+                deliveredVerifiedSelection = selection
+                verifiedSelection = selection; password = ""
+            } catch { self.error = "تعذر حفظ ملفات الشهادة داخل الجهاز." }
         }
     }
 
