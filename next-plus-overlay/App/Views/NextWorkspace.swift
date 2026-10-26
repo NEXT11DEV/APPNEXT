@@ -461,7 +461,7 @@ struct NextWorkspace: View {
                         Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("idk plus").font(.title2.bold())
-                            Text("1.5.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("1.6.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }

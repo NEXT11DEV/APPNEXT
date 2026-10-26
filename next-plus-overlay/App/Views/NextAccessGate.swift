@@ -55,9 +55,12 @@ struct NextAccessGate<Content: View>: View {
                                     .font(.system(.footnote, design: .monospaced))
                                     .padding().background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
                                     .environment(\.layoutDirection, .leftToRight)
-                                Button("تفعيل الاشتراك") { access.activate(code) }
+                                Button { Task { await access.activateInput(code) } } label: {
+                                    if access.activating { ProgressView() }
+                                    else { Text("تفعيل الاشتراك") }
+                                }
                                     .buttonStyle(.borderedProminent)
-                                    .disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                    .disabled(access.activating || code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             }
                             if !access.message.isEmpty {
                                 Text(access.message).foregroundStyle(.red).font(.footnote)

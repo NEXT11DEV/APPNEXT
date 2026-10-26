@@ -18,6 +18,7 @@ final class NextLicenseStore: ObservableObject {
     static let publicKeyBase64 = "HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA="
     @Published private(set) var license: License?
     @Published var message = ""
+    @Published private(set) var activating = false
     let installationID: String
     private let vault = "app.idkplus.activation.v1"
 
@@ -53,6 +54,53 @@ final class NextLicenseStore: ObservableObject {
         }
         message = ""
         license = parsed
+    }
+
+    /// Short codes resolve online to the same Ed25519 license used by existing installs.
+    /// Only the public service origin belongs in Info.plist; no administrator key is embedded.
+    func activateInput(_ input: String) async {
+        guard !activating else { return }
+        let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("IDK1.") { activate(value); return }
+        guard value.count == 12, value.lowercased().hasPrefix("idk"),
+              value.range(of: "^[iI][dD][kK][23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz]{9}$", options: .regularExpression) != nil else {
+            message = "أدخل الكود كاملًا: 12 خانة تبدأ بـ idk."
+            return
+        }
+        guard let origin = Bundle.main.object(forInfoDictionaryKey: "IDKActivationURL") as? String,
+              let base = URL(string: origin), base.scheme == "https", base.host != nil,
+              base.user == nil, base.password == nil, base.query == nil, base.fragment == nil else {
+            message = "خدمة الأكواد القصيرة لم تُربط بهذه النسخة بعد. استخدم التفعيل الطويل مؤقتًا."
+            return
+        }
+        activating = true; message = ""
+        defer { activating = false }
+        do {
+            var request = URLRequest(url: base.appendingPathComponent("api/redeem"),
+                                     cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["code": value, "subject": installationID])
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.url?.scheme == "https", http.url?.host == base.host else {
+                message = "تعذر التحقق من خدمة التفعيل."; return
+            }
+            guard http.statusCode == 200 else {
+                if http.statusCode == 429 { message = "محاولات كثيرة. انتظر دقيقة وأعد المحاولة." }
+                else if http.statusCode == 403 { message = "الكود غير صالح لهذا الجهاز، موقوف، أو منتهي." }
+                else { message = "خدمة التفعيل غير متاحة حاليًا. أعد المحاولة لاحقًا." }
+                return
+            }
+            struct Reply: Decodable { let token: String }
+            guard data.count < 16_384, let reply = try? JSONDecoder().decode(Reply.self, from: data) else {
+                message = "رد غير صحيح من خدمة التفعيل."; return
+            }
+            // An HTTP 200 alone never unlocks the store: verify signature, app, device and dates.
+            activate(reply.token)
+        } catch {
+            message = "تعذر الاتصال بخدمة التفعيل. تأكد من الإنترنت وأعد المحاولة."
+        }
     }
 
     private func verify(_ token: String) -> License? {
