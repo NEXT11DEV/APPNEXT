@@ -70,3 +70,29 @@ test('subscriber website, owner panel, brand and script routes remain distinct',
  assert.equal((await f.request('/constructor')).status,404);
  f.db.close();
 });
+test('certificate delivery stays encrypted at rest and only follows a valid bound code',async()=>{
+ const f=fixture();await f.request('/api/admin/setup','POST',{});
+ const issued=await (await f.request('/api/admin/licenses','POST',{token:await token()})).json();
+ const p12=Buffer.concat([Buffer.from([0x30]),Buffer.alloc(100000,7)]).toString('base64');
+ const profile=Buffer.from('<?xml version="1.0"?><plist><dict/></plist>').toString('base64');
+ const payload={p12,profile,password:'sample-secret-never-public'};
+ const path='/api/admin/licenses/'+issued.id+'/certificate';
+ assert.equal((await f.request(path,'POST',payload,false)).status,401);
+ assert.equal((await f.request(path,'POST',payload)).status,200);
+ const stored=f.db.prepare('SELECT * FROM credential_deliveries').get();
+ assert.ok(stored.ciphertext);assert.ok(!stored.ciphertext.includes(payload.password));assert.ok(!stored.ciphertext.includes(p12.slice(0,100)));
+ const list=await (await f.request('/api/admin/licenses')).json();assert.equal(list.items[0].has_certificate,1);assert.equal(list.items[0].ciphertext,undefined);
+ const other=await f.request('/api/redeem','POST',{code:issued.code,subject:subject.replace('AAAA','FFFF')},false);assert.equal(other.status,403);assert.equal((await other.json()).credentials,undefined);
+ const redeemed=await (await f.request('/api/redeem','POST',{code:issued.code,subject},false)).json();assert.deepEqual(redeemed.credentials,payload);
+ f.env.ADMIN_KEY='changed-key-'+ 'Y'.repeat(32);
+ assert.equal((await f.request('/api/redeem','POST',{code:issued.code,subject},false)).status,503);
+ f.db.close();
+});
+test('catalog pages stay bounded to thirty, full-library search and no public download links',async()=>{
+ const f=fixture();const first=await (await f.request('/api/catalog')).json();assert.equal(first.items.length,30);assert.equal(first.total,20419);assert.equal(first.next,30);assert.equal(first.items[0].downloadURL,undefined);
+ const next=await (await f.request('/api/catalog?offset=30')).json();assert.equal(next.items.length,30);assert.ok(!first.items.some(x=>x.id===next.items[0].id));
+ const search=await (await f.request('/api/catalog?q=Alpenglow')).json();assert.ok(search.total>0);assert.ok(search.items.every(a=>a.name.toLowerCase().includes('alpenglow')));
+ const home=await (await f.request('/')).text();for(const url of ['https://t.me/YG8_1','https://t.me/x_arw','https://t.me/xar_ipa'])assert.ok(home.includes(url));
+ const page=await f.request('/apps');assert.equal(page.status,200);assert.ok((await page.text()).includes('catalogSearch'));
+ f.db.close();
+});
