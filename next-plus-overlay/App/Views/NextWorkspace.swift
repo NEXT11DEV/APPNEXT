@@ -3,8 +3,8 @@ import UniformTypeIdentifiers
 
 private enum NextStyle {
     static let accent = Color(red: 0.08, green: 0.49, blue: 0.92)
-    static let page = Color(uiColor: .systemGroupedBackground)
-    static let card = Color(uiColor: .secondarySystemGroupedBackground)
+    static let page = Color(red: 0.94, green: 0.97, blue: 0.99)
+    static let card = Color.white
 }
 
 struct NextWorkspace: View {
@@ -84,6 +84,7 @@ struct NextWorkspace: View {
         }
         .navigationViewStyle(StackNavigationViewStyle())
         .tint(NextStyle.accent)
+        .preferredColorScheme(.light)
         .sheet(item: $selectedApp) { app in
             NextAppDetails(app: app, busy: signing.busy) { selected, copy in
                 signing.start(copy ? .repositoryCopy(selected) : .repository(selected))
@@ -155,7 +156,7 @@ struct NextWorkspace: View {
         if signing.busy || (signing.phase == .ready && showReadyBanner) {
             NextTransferBanner(title: signing.title, iconURL: signing.iconURL,
                 fraction: signing.phase == .downloading ? signing.progress : nil,
-                detail: signing.phase == .downloading ? (signing.transfer?.bytesText ?? "جاري الاتصال…") : signing.detail,
+                detail: signing.phase == .downloading ? ((signing.transfer?.percent.map { "\($0)٪ · " } ?? "") + (signing.transfer?.bytesText ?? "جاري الاتصال…")) : signing.detail,
                 ready: signing.phase == .ready,
                 onOpen: { tab = 1 }, onClose: {
                     if signing.busy { signing.cancel() } else { showReadyBanner = false }
@@ -197,7 +198,7 @@ struct NextWorkspace: View {
                                 Text("جرّب اسمًا ثانيًا أو غيّر التصنيف.").font(.caption).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity).padding(24)
                         }
-                        LazyVStack(spacing: 8) {
+                        LazyVStack(spacing: 12) {
                             ForEach(apps) { app in
                                 appCard(app).onAppear { if app.id == apps.last?.id { showMore() } }
                             }
@@ -245,28 +246,58 @@ struct NextWorkspace: View {
     }
 
     private var storeHero: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("تطبيقاتك. بأسلوبك.").font(.system(size: 23, weight: .heavy, design: .rounded))
-                    Text("اكتشف مكتبتك ووقّع تطبيقاتك من جهازك.")
-                        .font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.7)).lineLimit(2)
-                }
-                Spacer(minLength: 0)
-                Image("IDKPlusIcon").resizable().scaledToFit().frame(width: 70, height: 70)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.12), lineWidth: 1))
-            }
-            HStack(spacing: 8) {
-                Label("توقيع على جهازك", systemImage: "checkmark.seal.fill")
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                Label("مساحتك للتطبيقات", systemImage: "sparkles")
+                    .font(.system(size: 10, weight: .bold)).padding(.horizontal, 11).padding(.vertical, 7)
+                    .background(.white.opacity(0.13), in: Capsule())
                 Spacer()
-                Button { tab = 2 } label: { Label("ملفات التوقيع", systemImage: "arrow.up.left") }
-            }.font(.system(size: 10, weight: .semibold)).foregroundColor(Color(red: 0.39, green: 0.87, blue: 1))
+                Image("IDKPlusIcon").resizable().frame(width: 49, height: 49)
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                    .rotationEffect(.degrees(-8))
+                    .shadow(color: .black.opacity(0.2), radius: 12, y: 5)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("كل جديد.\nعلى كيفك.")
+                    .font(.system(size: 34, weight: .black, design: .rounded)).lineSpacing(1)
+                Text("اكتشف، وقّع، وخلّها بجهازك.")
+                    .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.8))
+            }
+            HStack {
+                HStack(spacing: 7) {
+                    Circle().fill(Color.cyan).frame(width: 6, height: 6)
+                    Text("توقيع من جهازك").font(.system(size: 10, weight: .semibold))
+                }
+                Spacer()
+                Button { tab = 2 } label: {
+                    HStack(spacing: 6) {
+                        Text("ملفات التوقيع")
+                        Image(systemName: "arrow.up.left")
+                    }.font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(.white.opacity(0.16), in: Capsule())
+                }.buttonStyle(.plain)
+            }
         }
-        .foregroundColor(.white).padding(18)
-        .background(LinearGradient(colors: [Color(red: 0.025, green: 0.06, blue: 0.15), Color(red: 0.04, green: 0.20, blue: 0.35)], startPoint: .topTrailing, endPoint: .bottomLeading), in: RoundedRectangle(cornerRadius: 23))
-        .overlay(RoundedRectangle(cornerRadius: 23).stroke(Color.cyan.opacity(0.20), lineWidth: 1))
-        .shadow(color: NextStyle.accent.opacity(0.12), radius: 14, y: 7)
+        .foregroundColor(.white).padding(22).frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            GeometryReader { geometry in
+                ZStack(alignment: .bottomLeading) {
+                    LinearGradient(colors: [Color(red: 0.025, green: 0.19, blue: 0.46), Color(red: 0.02, green: 0.46, blue: 0.86)], startPoint: .topTrailing, endPoint: .bottomLeading)
+                    Circle().fill(Color.cyan.opacity(0.18)).frame(width: 240, height: 240)
+                        .offset(x: -100, y: 90)
+                    Circle().stroke(.white.opacity(0.12), lineWidth: 1).frame(width: 270, height: 270)
+                        .offset(x: -70, y: 80)
+                    Circle().stroke(.white.opacity(0.10), lineWidth: 28).frame(width: 160, height: 160)
+                        .offset(x: -30, y: 40)
+                    Image(systemName: "arrow.up.right").font(.system(size: 92, weight: .black))
+                        .foregroundColor(.white.opacity(0.09)).position(x: geometry.size.width * 0.17, y: geometry.size.height * 0.57)
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 29))
+        .overlay(RoundedRectangle(cornerRadius: 29).stroke(.white.opacity(0.35), lineWidth: 1))
+        .shadow(color: NextStyle.accent.opacity(0.18), radius: 18, y: 9)
     }
 
     private var searchField: some View {
@@ -294,35 +325,46 @@ struct NextWorkspace: View {
     }
 
     private func appCard(_ app: RepoApp) -> some View {
-        VStack(spacing: 11) {
-            HStack(spacing: 12) {
-                Button { selectedApp = app } label: {
-                    HStack(spacing: 12) {
-                        CachedAppIcon(url: app.iconURL, size: 54, cornerRadius: 16)
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(app.name).font(.system(size: 15, weight: .bold)).foregroundStyle(.primary).lineLimit(1)
-                            Text(app.developerName ?? app.category ?? "اضغط لعرض التفاصيل")
-                                .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                            HStack(spacing: 7) {
-                                Text(app.version.map { "v\($0)" } ?? "IPA")
-                                if let size = app.size, size > 0 { Text("·"); Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
-                                Image(systemName: "chevron.left").font(.system(size: 8, weight: .bold))
-                            }.font(.system(size: 10)).foregroundStyle(NextStyle.accent)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    }.contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityLabel("تفاصيل \(app.name)")
-                VStack(spacing: 5) {
-                    Button { signing.start(.repository(app)) } label: {
-                        Text("تنزيل").font(.system(size: 11, weight: .bold)).frame(width: 64, height: 29)
-                            .background(NextStyle.accent.opacity(0.10), in: Capsule())
-                    }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
-                    Button { signing.start(.repositoryCopy(app)) } label: {
-                        Label("تكرار", systemImage: "plus.square.on.square").font(.system(size: 9)).frame(width: 64, height: 20)
-                    }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
-                }
+        HStack(spacing: 12) {
+            Button { selectedApp = app } label: {
+                HStack(spacing: 12) {
+                    CachedAppIcon(url: app.iconURL, size: 58, cornerRadius: 18)
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(app.name).font(.system(size: 15, weight: .bold)).foregroundStyle(.primary).lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(app.version.map { "v\($0)" } ?? "IPA")
+                            if let size = app.size, size > 0 {
+                                Circle().frame(width: 3, height: 3)
+                                Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                            }
+                        }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
+                        Text("التفاصيل والإصدارات  ‹").font(.system(size: 9, weight: .semibold)).foregroundStyle(NextStyle.accent)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("تفاصيل \(app.name)")
+            VStack(spacing: 6) {
+                Button { signing.start(.repository(app)) } label: {
+                    HStack(spacing: 4) {
+                        if signing.busy && signing.title == app.name { ProgressView().tint(.white).scaleEffect(0.7) }
+                        else { Image(systemName: "arrow.down").font(.system(size: 9, weight: .bold)) }
+                        Text("تنزيل").font(.system(size: 11, weight: .bold))
+                    }.frame(width: 70, height: 32).foregroundColor(.white)
+                        .background(LinearGradient(colors: [NextStyle.accent, Color(red: 0.03, green: 0.64, blue: 0.90)], startPoint: .trailing, endPoint: .leading), in: Capsule())
+                        .shadow(color: NextStyle.accent.opacity(0.20), radius: 7, y: 3)
+                }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
+                Menu {
+                    Button { selectedApp = app } label: { Label("تفاصيل التطبيق", systemImage: "info.circle") }
+                    Button { signing.start(.repositoryCopy(app)) } label: { Label("تثبيت نسخة إضافية", systemImage: "square.on.square") }
+                        .disabled(signing.busy || app.downloadURL == nil)
+                } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 15, weight: .bold))
+                        .foregroundColor(NextStyle.accent).frame(width: 70, height: 24).contentShape(Rectangle())
+                }.accessibilityLabel("خيارات \(app.name)")
             }
-            Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 0.5).padding(.leading, 66)
-        }.padding(.horizontal, 4).padding(.top, 5)
+        }
+        .padding(14).background(.white, in: RoundedRectangle(cornerRadius: 23))
+        .overlay(RoundedRectangle(cornerRadius: 23).stroke(Color(red: 0.85, green: 0.91, blue: 0.96), lineWidth: 1))
+        .shadow(color: Color(red: 0.15, green: 0.35, blue: 0.55).opacity(0.045), radius: 10, y: 4)
     }
 
     private var library: some View {
@@ -419,7 +461,7 @@ struct NextWorkspace: View {
                         Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("idk plus").font(.title2.bold())
-                            Text("1.4.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("1.5.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
