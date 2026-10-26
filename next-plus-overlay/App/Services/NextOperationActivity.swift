@@ -13,10 +13,13 @@ final class NextOperationActivity {
     private var bucket = -1
     private var iconData: Data?
     private var latestMessage = "جاري تجهيز التنزيل…"
+    private var latestSubtitle = "idk plus"
+    private var lastUnknownNotice: TimeInterval = -3
 
     func begin(title: String, iconURL: URL?, onExpiration: @escaping @MainActor @Sendable () -> Void) {
         end()
         active = true; allowed = false; bucket = -1; iconData = nil; latestMessage = "جاري تجهيز التنزيل…"
+        latestSubtitle = "idk plus"; lastUnknownNotice = -3
         self.title = title
         notificationID = "idkplus.operation.\(UUID().uuidString)"
         let generation = notificationID
@@ -29,6 +32,7 @@ final class NextOperationActivity {
             let bytes = await NextAppIconAsset.png(for: iconURL)
             guard active, notificationID == generation else { return }
             iconData = bytes
+            publish()
         }
         let enabled = UserDefaults.standard.object(forKey: "idk.download-notifications") as? Bool ?? true
         guard enabled else { return }
@@ -41,7 +45,7 @@ final class NextOperationActivity {
             }
             guard active, notificationID == generation else { return }
             allowed = permission
-            if permission { stage(latestMessage) }
+            if permission { publish() }
         }
     }
 
@@ -51,22 +55,32 @@ final class NextOperationActivity {
     }
 
     func progress(_ value: NextTransferSnapshot) {
-        latestMessage = value.notificationText
-        guard let percent = value.percent else { return }
+        latestMessage = value.notificationBody
+        latestSubtitle = value.notificationSubtitle
+        guard let percent = value.percent else {
+            let now = ProcessInfo.processInfo.systemUptime
+            if now - lastUnknownNotice >= 3 { lastUnknownNotice = now; publish() }
+            return
+        }
         let next = percent / 10
         guard next > bucket else { return }
         bucket = next
-        stage(value.notificationText)
+        publish()
     }
 
     func stage(_ message: String) {
         latestMessage = message
+        latestSubtitle = "idk plus • التنزيل والتوقيع"
+        publish()
+    }
+
+    private func publish() {
         guard active, allowed else { return }
         let center = UNUserNotificationCenter.current()
         center.removeDeliveredNotifications(withIdentifiers: [notificationID])
         let content = UNMutableNotificationContent()
-        content.title = title; content.subtitle = "idk plus • التنزيل والتوقيع"
-        content.body = String(message.prefix(240))
+        content.title = title; content.subtitle = latestSubtitle
+        content.body = String(latestMessage.prefix(240))
         content.threadIdentifier = notificationID
         if let iconData, iconData.count <= 1_024 * 1_024 {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("idk-notification-icons")

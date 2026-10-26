@@ -13,6 +13,12 @@ struct NextTransferSnapshot: Equatable, Sendable {
         guard expected > 0 else { return actual }
         return actual + " / " + ByteCountFormatter.string(fromByteCount: expected, countStyle: .file)
     }
+    var notificationSubtitle: String {
+        percent.map { "idk plus • جاري التنزيل (\($0)٪)" } ?? "idk plus • جاري التنزيل"
+    }
+    var notificationBody: String {
+        notificationText.split(separator: "\n", omittingEmptySubsequences: false).dropFirst().joined(separator: "\n")
+    }
     var notificationText: String {
         guard let percent else { return "جاري التنزيل\n" + bytesText }
         // Text progress, as in the reference; it always represents measured bytes.

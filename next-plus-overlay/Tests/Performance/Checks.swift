@@ -4,6 +4,8 @@ import Foundation
     static func main() throws {
         let measured = NextTransferSnapshot(received: 14_000_000, expected: 35_000_000)
         precondition(measured.percent == 40 && measured.fraction == 0.4)
+        precondition(measured.notificationSubtitle.contains("40"))
+        precondition(measured.notificationBody.contains(measured.bytesText))
         precondition(measured.notificationText.contains("40") && measured.notificationText.contains(measured.bytesText))
         precondition(measured.notificationText.contains(String(repeating: "▰", count: 4)))
         precondition(NextTransferSnapshot(received: 100, expected: -1).fraction == nil)

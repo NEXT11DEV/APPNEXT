@@ -156,13 +156,15 @@ struct NextWorkspace: View {
                 })
                 .padding(.horizontal, 14).padding(.top, 4).padding(.bottom, 6)
         }
+        else {
         #if DEBUG
-        else if ProcessInfo.processInfo.environment["IDK_UI_TRANSFER"] == "1" {
+        if ProcessInfo.processInfo.environment["IDK_UI_TRANSFER"] == "1" {
             NextTransferBanner(title: "معاينة التنزيل · Example.ipa", iconURL: nil, fraction: 0.42,
                 detail: "13.4 MB / 32 MB", ready: false, onOpen: {}, onClose: {})
                 .padding(.horizontal, 14).padding(.top, 4).padding(.bottom, 6)
         }
         #endif
+        }
     }
 
     private var store: some View {
