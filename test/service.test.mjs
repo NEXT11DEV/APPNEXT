@@ -60,3 +60,13 @@ test('list pagination does not drop records sharing an issuance second',async()=
  f.db.close();
 });
 test('panel is dependency-free and uses safe text nodes for subscriber data',()=>{assert.doesNotThrow(()=>new Function(javascript));assert.ok(javascript.includes('textContent=value'));assert.ok(!javascript.includes('innerHTML'));assert.ok(!javascript.includes('localStorage'));});
+test('subscriber website, owner panel, brand and script routes remain distinct',async()=>{
+ const f=fixture();
+ const home=await f.request('/');assert.equal(home.status,200);const body=await home.text();assert.ok(body.includes('بطريقتك أنت.'));assert.ok(!body.includes('id="adminKey"'));assert.ok(body.includes('/admin'));assert.ok(body.includes('idk-plus-1.6.0-unsigned.ipa'));
+ const admin=await f.request('/admin');assert.equal(admin.status,200);assert.ok((await admin.text()).includes('id="adminKey"'));
+ const icon=await f.request('/brand.png');assert.equal(icon.headers.get('content-type'),'image/png');assert.equal((await icon.arrayBuffer()).byteLength,753005);
+ assert.equal((await f.request('/site.js')).headers.get('content-type'),'application/javascript; charset=utf-8');
+ assert.equal((await f.request('/api/admin/licenses','GET',undefined,false)).status,401);
+ assert.equal((await f.request('/constructor')).status,404);
+ f.db.close();
+});

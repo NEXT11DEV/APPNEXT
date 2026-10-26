@@ -1,4 +1,6 @@
 import { html, css, javascript } from './panel.mjs';
+import { siteHTML, siteCSS, siteJS } from './site.mjs';
+import { brandPNG } from './brand.mjs';
 export const PUBLIC_KEY = 'HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA=';
 const enc = new TextEncoder();
 const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -68,9 +70,14 @@ async function limit(request,env,scope,max,now) {
 }
 async function handle(request,env,publicKey) {
  const url=new URL(request.url),path=url.pathname;
- if(request.method==='GET'&&(path==='/'||path==='/panel.css'||path==='/panel.js')) {
-  const data=path==='/'?html:path==='/panel.css'?css:javascript;
-  const type=path==='/'?'text/html':path==='/panel.css'?'text/css':'application/javascript';
+ if(request.method==='GET'&&path==='/brand.png') {
+  return new Response(decode(brandPNG),{headers:{...securityHeaders,'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
+ }
+ const pages = {'/':[siteHTML,'text/html'],'/admin':[html,'text/html'],'/admin/':[html,'text/html'],
+                '/site.css':[siteCSS,'text/css'],'/site.js':[siteJS,'application/javascript'],
+                '/panel.css':[css,'text/css'],'/panel.js':[javascript,'application/javascript']};
+ if(request.method==='GET'&&Object.hasOwn(pages,path)) {
+  const [data,type]=pages[path];
   return new Response(data,{headers:{...securityHeaders,'Content-Type':type+'; charset=utf-8'}});
  }
  if(path==='/api/health'&&request.method==='GET')return response({service:'idk plus',version:1});
