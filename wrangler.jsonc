@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "idk-plus-panel",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2025-10-24",
+  "workers_dev": true,
+  "d1_databases": [{ "binding": "DB", "database_name": "idk-plus-licenses" }],
+  "triggers": { "crons": ["0 * * * *"] }
+}
