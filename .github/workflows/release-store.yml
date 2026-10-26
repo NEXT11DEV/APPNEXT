@@ -16,7 +16,7 @@ jobs:
         with:
           name: idk-plus-unsigned-IPA
           github-token: ${{ github.token }}
-          run-id: 40339129489
+          run-id: 40379096424
           path: release
       - name: Verify and name the public download
         run: |
@@ -24,19 +24,19 @@ jobs:
           from pathlib import Path
           import hashlib,zipfile,plistlib
           p=Path('release/idk-plus-unsigned.ipa')
-          assert hashlib.sha256(p.read_bytes()).hexdigest()=='82dfa807a56cb832808a9c8141783e55e301472f8cd83095ded2fe6d945e8362'
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='0f9e8bc283221c1d082982cca46ba1ea00399fbe48d7d59b8ecf250910eb7722'
           with zipfile.ZipFile(p) as z:
               info=plistlib.loads(z.read('Payload/IDKPlus.app/Info.plist'))
-              assert info['CFBundleIdentifier']=='app.idkplus.store' and info['CFBundleShortVersionString']=='1.7.0'
+              assert info['CFBundleIdentifier']=='app.idkplus.store' and info['CFBundleShortVersionString']=='1.7.1'
               assert not any(n.lower().endswith(('.pem','.p12','.mobileprovision')) for n in z.namelist())
-          p.rename('release/idk-plus-1.7.0-unsigned.ipa')
+          p.rename('release/idk-plus-1.7.1-unsigned.ipa')
           PY
       - name: Publish verified unsigned IPA
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view idk-v1.7.0 >/dev/null 2>&1; then
-            gh release view idk-v1.7.0 --json assets --jq '.assets[].name' | rg '^idk-plus-1.7.0-unsigned.ipa$'
+          if gh release view idk-v1.7.1 >/dev/null 2>&1; then
+            gh release view idk-v1.7.1 --json assets --jq '.assets[].name' | rg '^idk-plus-1.7.1-unsigned.ipa$'
           else
-            gh release create idk-v1.7.0 release/idk-plus-1.7.0-unsigned.ipa --target 07dbc9191238fdd8f773a1e0ad9daf1fbca9169d --title 'idk plus 1.7.0' --notes 'Unsigned IPA for iOS 15 and later. Sign with your own valid P12 and provisioning profile. Supports device-bound short activation codes. No signing certificate or owner private key is included.'
+            gh release create idk-v1.7.1 release/idk-plus-1.7.1-unsigned.ipa --target 9cfa1f7bd69f6074ea5b48558864b5d59360c42b --title 'idk plus 1.7.1' --notes 'Unsigned IPA for iOS 15 and later. Sign with your own valid P12 and provisioning profile. Supports device-bound short activation codes. No signing certificate or owner private key is included.'
           fi
