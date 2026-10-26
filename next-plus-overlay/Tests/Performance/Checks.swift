@@ -2,6 +2,15 @@ import Foundation
 
 @main struct PerformanceChecks {
     static func main() throws {
+        let measured = NextTransferSnapshot(received: 14_000_000, expected: 35_000_000)
+        precondition(measured.percent == 40 && measured.fraction == 0.4)
+        precondition(measured.notificationText.contains("40") && measured.notificationText.contains(measured.bytesText))
+        precondition(measured.notificationText.contains(String(repeating: "▰", count: 4)))
+        precondition(NextTransferSnapshot(received: 100, expected: -1).fraction == nil)
+        precondition(NextTransferSnapshot(received: 100, expected: 0).percent == nil)
+        precondition(NextTransferSnapshot(received: 120, expected: 100).percent == 100)
+        precondition(NextTransferSnapshot(received: -1, expected: 100).percent == 0)
+        print("PASS: HUD/notification snapshots use measured bytes, correct percentages, clamped progress and unknown totals without invented percentages")
         var throttle = NextProgressThrottle()
         var emissions = 0
         for tick in 0..<10_000 {

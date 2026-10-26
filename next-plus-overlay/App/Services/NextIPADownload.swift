@@ -8,9 +8,9 @@ final class NextIPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Se
     private var destination: URL?
     private var progressThrottle = NextProgressThrottle()
     private var session: URLSession?
-    private var progress: (@Sendable (Double?) -> Void)?
+    private var progress: (@Sendable (NextTransferSnapshot) -> Void)?
 
-    func run(url: URL, destination: URL, progress: @escaping @Sendable (Double?) -> Void) async throws -> URL {
+    func run(url: URL, destination: URL, progress: @escaping @Sendable (NextTransferSnapshot) -> Void) async throws -> URL {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 lock.lock()
@@ -55,7 +55,7 @@ final class NextIPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Se
         lock.lock()
         let callback = progressThrottle.shouldEmit(at: ProcessInfo.processInfo.systemUptime, completed: completed) ? progress : nil
         lock.unlock()
-        callback?(totalBytesExpectedToWrite > 0 ? min(1, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)) : nil)
+        callback?(NextTransferSnapshot(received: totalBytesWritten, expected: totalBytesExpectedToWrite))
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {

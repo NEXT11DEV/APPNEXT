@@ -6,6 +6,8 @@ final class NextSigningCoordinator: ObservableObject {
     enum Phase: String { case idle, downloading, inspecting, signing, ready, failed }
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var progress: Double?
+    @Published private(set) var transfer: NextTransferSnapshot?
+    @Published private(set) var iconURL: URL?
     @Published private(set) var title = ""
     @Published private(set) var detail = ""
     @Published var error: String?
@@ -44,19 +46,23 @@ final class NextSigningCoordinator: ObservableObject {
             waitingRequest = request; needsPassword = true; return
         }
         // An empty string is a valid P12 password and must reach OpenSSL.
-        signedURL = nil; progress = nil; log = []
+        signedURL = nil; progress = nil; transfer = nil; iconURL = nil; log = []
         let certificateURL = certificates.fileURL(for: certificate)
         let profileURL = profiles.fileURL(for: profile)
         let work = staging.tempDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let output = history.signedDir.appendingPathComponent("next-\(UUID().uuidString).ipa")
         let appName: String
         switch request { case .repository(let app), .repositoryCopy(let app): appName = app.name; case .imported(let url), .importedCopy(let url): appName = url.deletingPathExtension().lastPathComponent }
+        switch request {
+        case .repository(let app), .repositoryCopy(let app): iconURL = app.iconURL
+        default: break
+        }
         let currentOperation = UUID(); operationID = currentOperation
         title = appName
         phase = .inspecting; detail = "فحص ملفات التوقيع…"
         task = Task {
             let operationStarted = ProcessInfo.processInfo.systemUptime
-            activity.begin(title: appName) { [weak self] in self?.cancel() }
+            activity.begin(title: appName, iconURL: iconURL) { [weak self] in self?.cancel() }
             defer { activity.end(); task = nil; try? FileManager.default.removeItem(at: work) }
             do {
                 try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -78,7 +84,8 @@ final class NextSigningCoordinator: ObservableObject {
                     ipa = try await downloader.run(url: url, destination: work.appendingPathComponent("input.ipa")) { [weak self] value in
                         Task { @MainActor in
                             guard let self, self.operationID == currentOperation, self.phase == .downloading else { return }
-                            self.progress = value
+                            self.transfer = value
+                            self.progress = value.fraction
                             self.activity.progress(value)
                         }
                     }
@@ -101,6 +108,10 @@ final class NextSigningCoordinator: ObservableObject {
                     try IPAPreflightService.inspect(ipa: ipa, temporaryDirectory: work, retainForSigning: true).get()
                 }.value
                 recordDuration("فحص IPA", since: inspectionStarted)
+                if let localIcon = inspection.iconURL {
+                    iconURL = localIcon
+                    activity.setLocalIcon(localIcon)
+                }
                 guard inspection.encryptedExecutableCount == 0 else { throw NextFailure("التطبيق مشفّر من App Store؛ إعادة التوقيع وحدها لا تكفي لتثبيته.") }
                 guard inspection.preparedFolder != nil else { throw NextFailure("تعذر تجهيز ملفات التطبيق للتوقيع.") }
                 record("فُكّ IPA مرة واحدة؛ التوقيع يستخدم نفس الملفات المفحوصة")
@@ -149,6 +160,7 @@ final class NextSigningCoordinator: ObservableObject {
                 activity.stage("اكتمل التوقيع. وافق على نافذة التثبيت، أو افتح idk plus لإعادة طلبها.")
                 installSigned()
             } catch is CancellationError {
+                activity.stage("تم إلغاء العملية.")
                 try? FileManager.default.removeItem(at: output)
                 phase = .idle; detail = "تم إلغاء العملية."; record("إلغاء العملية")
             } catch {

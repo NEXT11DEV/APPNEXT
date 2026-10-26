@@ -1,4 +1,4 @@
-# idk plus 1.2.0
+# idk plus 1.3.0
 
 iOS 15+ app library and on-device IPA signing, derived from NEXT PlUS 1.2.1.
 
@@ -34,3 +34,11 @@ Retain the upstream source licenses. This app retains the original signing engin
 - Buyer certificate automation is documented in Docs/BuyerEnrollment.ar.md; no fictional certificate service or private-key distribution backend has been activated.
 
 - Duplicate buttons in the store and signed library append two unused lowercase letters to the actual inspected IPA bundle identifier, sign a distinct display name, and keep the input archive unchanged. All 676 two-letter combinations are collision-checked against this installation's signing history. iOS acceptance still depends on certificate/profile compatibility.
+
+## 1.3.0
+
+- Compact branded store with a navy hero, cyan/blue actions, denser application rows, and floating navigation dock.
+- Installing from the store stays on the store. A real transfer HUD shows the app icon/name, measured percentage, downloaded/total bytes and cancel control. Tapping it opens library details.
+- Local notification bodies now contain the same measured bytes and a text progress meter, plus an app-icon attachment where available. An iOS Settings shortcut is provided for notification permission.
+- Unknown response lengths never show invented percentages. Stage changes distinguish downloading, inspection, signing and readiness.
+- The simulator download-hud screenshot is explicitly labelled as a UI preview; it does not claim a completed real download or a physical-device notification test.

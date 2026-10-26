@@ -11,10 +11,12 @@ final class NextOperationActivity {
     private var active = false
     private var allowed = false
     private var bucket = -1
+    private var iconData: Data?
+    private var latestMessage = "جاري تجهيز التنزيل…"
 
-    func begin(title: String, onExpiration: @escaping @MainActor @Sendable () -> Void) {
+    func begin(title: String, iconURL: URL?, onExpiration: @escaping @MainActor @Sendable () -> Void) {
         end()
-        active = true; allowed = false; bucket = -1
+        active = true; allowed = false; bucket = -1; iconData = nil; latestMessage = "جاري تجهيز التنزيل…"
         self.title = title
         notificationID = "idkplus.operation.\(UUID().uuidString)"
         let generation = notificationID
@@ -22,6 +24,11 @@ final class NextOperationActivity {
             guard let self, self.notificationID == generation else { return }
             self.stage("انتهت مهلة العمل بالخلفية. افتح idk plus وأعد المحاولة.")
             onExpiration(); self.end()
+        }
+        Task {
+            let bytes = await NextAppIconAsset.png(for: iconURL)
+            guard active, notificationID == generation else { return }
+            iconData = bytes
         }
         let enabled = UserDefaults.standard.object(forKey: "idk.download-notifications") as? Bool ?? true
         guard enabled else { return }
@@ -34,26 +41,43 @@ final class NextOperationActivity {
             }
             guard active, notificationID == generation else { return }
             allowed = permission
+            if permission { stage(latestMessage) }
         }
     }
 
-    func progress(_ value: Double?) {
-        guard let value, value.isFinite else { return }
-        let percent = min(100, max(0, Int(value * 100)))
-        let next = percent / 20
+    func setLocalIcon(_ url: URL) {
+        guard let image = UIImage(contentsOfFile: url.path) else { return }
+        iconData = image.pngData()
+    }
+
+    func progress(_ value: NextTransferSnapshot) {
+        latestMessage = value.notificationText
+        guard let percent = value.percent else { return }
+        let next = percent / 10
         guard next > bucket else { return }
         bucket = next
-        stage("جاري التنزيل: \(percent)٪")
+        stage(value.notificationText)
     }
 
     func stage(_ message: String) {
+        latestMessage = message
         guard active, allowed else { return }
         let center = UNUserNotificationCenter.current()
         center.removeDeliveredNotifications(withIdentifiers: [notificationID])
         let content = UNMutableNotificationContent()
-        content.title = title; content.subtitle = "idk plus"
+        content.title = title; content.subtitle = "idk plus • التنزيل والتوقيع"
         content.body = String(message.prefix(240))
         content.threadIdentifier = notificationID
+        if let iconData, iconData.count <= 1_024 * 1_024 {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("idk-notification-icons")
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let file = directory.appendingPathComponent(UUID().uuidString + ".png")
+            if (try? iconData.write(to: file)) != nil,
+               let attachment = try? UNNotificationAttachment(identifier: "app-icon", url: file,
+                   options: [UNNotificationAttachmentOptionsThumbnailHiddenKey: false]) {
+                content.attachments = [attachment]
+            }
+        }
         center.add(UNNotificationRequest(identifier: notificationID, content: content, trigger: nil), withCompletionHandler: nil)
     }
 
