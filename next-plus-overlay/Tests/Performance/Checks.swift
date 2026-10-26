@@ -44,6 +44,13 @@ import Foundation
         precondition(NextCatalogIndex.filter(index, query: "", category: "ألعاب").count == 6_001)
         precondition(NextCatalogIndex.filter(index, query: "", category: "تطبيقات").count == 6_000)
         precondition(NextCatalogIndex.filter(index, query: "Arabic", category: "ألعاب").count == 1)
+        let releases = try source([["name":"Multi","bundleIdentifier":"com.multi","localizedDescription":"A real source description","versions":[["version":"2","downloadURL":"https://example.com/two.ipa","size":200],["version":"1","downloadURL":"https://example.com/one.ipa","size":100]]]])
+        let original = releases.apps[0]
+        let chosen = try original.selectingVersion(original.versions[1])
+        precondition(chosen.version == "1" && chosen.downloadURL?.absoluteString == "https://example.com/one.ipa" && chosen.size == 100)
+        precondition(chosen.localizedDescription == original.localizedDescription && chosen.bundleIdentifier == original.bundleIdentifier)
+        precondition(original.version == "2")
+        print("PASS: selected historical version uses its own URL and size while preserving description and identifier")
         let removed = NextCatalogIndex.flatten(repositories: [b], catalog: [a.id: primary,b.id: secondary])
         precondition(removed.count == 2 && removed[0].name == "Duplicate")
         let firstPage = NextCatalogIndex.page(index, query: "", category: "الكل")

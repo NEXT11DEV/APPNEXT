@@ -110,6 +110,10 @@ jobs:
             xcrun simctl io "$DEVICE" screenshot "build/screenshots/tab-$TAB.png"
             xcrun simctl terminate "$DEVICE" app.idkplus.store.uisim
           done
+          SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_IDK_UI_DETAILS=1 xcrun simctl launch "$DEVICE" app.idkplus.store.uisim
+          sleep 5
+          xcrun simctl io "$DEVICE" screenshot build/screenshots/app-details.png
+          xcrun simctl terminate "$DEVICE" app.idkplus.store.uisim
           SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_IDK_UI_TRANSFER=1 xcrun simctl launch "$DEVICE" app.idkplus.store.uisim
           sleep 4
           xcrun simctl io "$DEVICE" screenshot build/screenshots/download-hud.png

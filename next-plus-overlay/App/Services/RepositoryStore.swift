@@ -142,6 +142,17 @@ struct RepoApp: Codable, Identifiable, Equatable, Sendable {
         size = flatSize ?? first?.size
     }
 
+    /// Preserve every descriptive field while choosing the exact release URL.
+    func selectingVersion(_ release: RepoVersion) throws -> RepoApp {
+        let data = try JSONEncoder().encode(self)
+        var object = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        object["version"] = release.version
+        object["downloadURL"] = release.downloadURL?.absoluteString
+        object["size"] = release.size
+        object["versions"] = [["version": release.version ?? "", "downloadURL": release.downloadURL?.absoluteString ?? "", "size": release.size ?? 0]]
+        return try JSONDecoder().decode(RepoApp.self, from: JSONSerialization.data(withJSONObject: object))
+    }
+
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(name, forKey: .name)

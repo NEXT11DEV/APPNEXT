@@ -17,6 +17,7 @@ struct NextWorkspace: View {
     @AppStorage("idk.download-notifications") private var downloadNotifications = true
     @State private var tab = 0
     @State private var query = ""
+    @State private var selectedApp: RepoApp?
     @State private var showSources = false
     @State private var showCertificates = false
     @State private var showProfiles = false
@@ -83,6 +84,11 @@ struct NextWorkspace: View {
         }
         .navigationViewStyle(StackNavigationViewStyle())
         .tint(NextStyle.accent)
+        .sheet(item: $selectedApp) { app in
+            NextAppDetails(app: app, busy: signing.busy) { selected, copy in
+                signing.start(copy ? .repositoryCopy(selected) : .repository(selected))
+            }
+        }
         .sheet(isPresented: $showSources) { SourcesView() }
         .sheet(isPresented: $showCertificates) { CertificatesSheet() }
         .sheet(isPresented: $showProfiles) { ProfilesSheet() }
@@ -213,6 +219,9 @@ struct NextWorkspace: View {
                     guard !refreshed else { return }; refreshed = true
                     while !repositories.catalogCacheLoaded { try? await Task.sleep(nanoseconds: 20_000_000) }
                     await refresh()
+                    #if DEBUG
+                    if ProcessInfo.processInfo.environment["IDK_UI_DETAILS"] == "1", let first = allApps.first { selectedApp = first }
+                    #endif
                 }
             }
         }
@@ -285,32 +294,35 @@ struct NextWorkspace: View {
     }
 
     private func appCard(_ app: RepoApp) -> some View {
-        HStack(spacing: 10) {
-            CachedAppIcon(url: app.iconURL, size: 44, cornerRadius: 12)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(app.name).font(.system(size: 14, weight: .semibold)).lineLimit(1)
-                HStack(spacing: 5) {
-                    Text(app.version.map { "v\($0)" } ?? "IPA")
-                    if let size = app.size, size > 0 {
-                        Text("·"); Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                    }
-                }.font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            VStack(spacing: 2) {
-                Button { signing.start(.repository(app)) } label: {
-                    Text("تثبيت").font(.system(size: 11, weight: .bold)).foregroundColor(.white)
-                        .frame(width: 62, height: 27)
-                        .background(LinearGradient(colors: [NextStyle.accent, Color(red: 0.12, green: 0.67, blue: 0.95)], startPoint: .trailing, endPoint: .leading), in: Capsule())
-                }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
-                    .accessibilityLabel("تنزيل وتوقيع \(app.name)")
-                Button { signing.start(.repositoryCopy(app)) } label: {
-                    Label("تكرار", systemImage: "plus.square.on.square").font(.system(size: 9, weight: .medium)).frame(width: 62, height: 19)
-                }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
+        VStack(spacing: 11) {
+            HStack(spacing: 12) {
+                Button { selectedApp = app } label: {
+                    HStack(spacing: 12) {
+                        CachedAppIcon(url: app.iconURL, size: 54, cornerRadius: 16)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(app.name).font(.system(size: 15, weight: .bold)).foregroundStyle(.primary).lineLimit(1)
+                            Text(app.developerName ?? app.category ?? "اضغط لعرض التفاصيل")
+                                .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            HStack(spacing: 7) {
+                                Text(app.version.map { "v\($0)" } ?? "IPA")
+                                if let size = app.size, size > 0 { Text("·"); Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
+                                Image(systemName: "chevron.left").font(.system(size: 8, weight: .bold))
+                            }.font(.system(size: 10)).foregroundStyle(NextStyle.accent)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }.contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityLabel("تفاصيل \(app.name)")
+                VStack(spacing: 5) {
+                    Button { signing.start(.repository(app)) } label: {
+                        Text("تنزيل").font(.system(size: 11, weight: .bold)).frame(width: 64, height: 29)
+                            .background(NextStyle.accent.opacity(0.10), in: Capsule())
+                    }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
+                    Button { signing.start(.repositoryCopy(app)) } label: {
+                        Label("تكرار", systemImage: "plus.square.on.square").font(.system(size: 9)).frame(width: 64, height: 20)
+                    }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
+                }
             }
-        }
-        .padding(.horizontal, 11).padding(.vertical, 9)
-        .background(NextStyle.card, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(NextStyle.accent.opacity(0.07), lineWidth: 0.8))
+            Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 0.5).padding(.leading, 66)
+        }.padding(.horizontal, 4).padding(.top, 5)
     }
 
     private var library: some View {
@@ -407,7 +419,7 @@ struct NextWorkspace: View {
                         Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("idk plus").font(.title2.bold())
-                            Text("1.3.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("1.4.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
