@@ -263,6 +263,19 @@ struct NextWorkspace: View {
                 Text("اكتشف، وقّع، وخلّها بجهازك.")
                     .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.8))
             }
+            Link(destination: URL(string: "https://t.me/xar_ipa")!) {
+                HStack(spacing: 8) {
+                    Image(systemName: "paperplane.fill")
+                    Text("التحديثات والتطوير")
+                    Spacer(minLength: 8)
+                    Image(systemName: "arrow.up.left")
+                }
+                .font(.system(size: 12, weight: .bold))
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("يفتح قناة المتجر على تليغرام")
             HStack {
                 HStack(spacing: 7) {
                     Circle().fill(Color.cyan).frame(width: 6, height: 6)
@@ -461,7 +474,7 @@ struct NextWorkspace: View {
                         Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("idk plus").font(.title2.bold())
-                            Text("1.7.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("1.7.1").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
                 }
