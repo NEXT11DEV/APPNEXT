@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  (d/'profile.plist').write_bytes(plistlib.dumps(profile))
  cmd('cms','-sign','-binary','-nodetach','-in',d/'profile.plist','-signer',d/'leaf.pem','-inkey',d/'leaf.key','-outform','DER','-out',d/'test.mobileprovision')
  app=d/'Payload/Smoke.app';app.mkdir(parents=True)
- (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='app.idkplus.smoke',CFBundleExecutable='Smoke',CFBundleName='Smoke',CFBundleVersion='1',CFBundleShortVersionString='1.0',CFBundlePackageType='APPL',MinimumOSVersion='15.0')))
+ (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='app.taifplus.smoke',CFBundleExecutable='Smoke',CFBundleName='Smoke',CFBundleVersion='1',CFBundleShortVersionString='1.0',CFBundlePackageType='APPL',MinimumOSVersion='15.0')))
  (d/'main.c').write_text('int main(void) { return 0; }\n')
  sdk=subprocess.check_output(['xcrun','--sdk','iphoneos','--show-sdk-path'],text=True).strip()
  run(['xcrun','clang','-target','arm64-apple-ios15.0','-isysroot',sdk,d/'main.c','-o',app/'Smoke'])
@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
    assert z.read('Payload/Smoke.app/embedded.mobileprovision')==(d/'test.mobileprovision').read_bytes()
    resources=plistlib.loads(z.read('Payload/Smoke.app/_CodeSignature/CodeResources'))
    assert 'resource.txt' in resources.get('files2',resources.get('files',{}))
-   assert plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))['CFBundleIdentifier']=='app.idkplus.smoke'
+   assert plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))['CFBundleIdentifier']=='app.taifplus.smoke'
    signed=z.read('Payload/Smoke.app/Smoke');assert b'\xfa\xde\x0c\xc0' in signed
    verify=d/('verify-'+name);z.extractall(verify)
   verify_signature(verify/'Payload/Smoke.app',openssl,d)
@@ -100,11 +100,11 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
   original=(d/'input.ipa').read_bytes()
   run([driver,d/'input.ipa',d/(name+'.p12'),password,d/'test.mobileprovision',output,work,'prepared'])
   assert (d/'input.ipa').read_bytes()==original
-  assert not (work/'idk_prepared').exists()
-  assert not (work/'idk_prepared.ready').exists()
+  assert not (work/'taif_prepared').exists()
+  assert not (work/'taif_prepared.ready').exists()
   with zipfile.ZipFile(output) as z:
    assert z.read('Payload/Smoke.app/prepared-proof.txt')==b'prepared tree was reused'
-   assert not any('idk_prepared.ready' in n for n in z.namelist())
+   assert not any('taif_prepared.ready' in n for n in z.namelist())
    extracted=d/('prepared-verify-'+name);z.extractall(extracted)
   verify_signature(extracted/'Payload/Smoke.app',openssl,d)
   print('PASS prepared native pipeline: one extraction reused, protected/empty passwords, CMS/resources valid, original input unchanged, replay rejected')
@@ -127,7 +127,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
    if file.is_file():z.write(file,file.relative_to(d))
  work=d/'encrypted-work';work.mkdir();output=d/'encrypted-output.ipa'
  result=subprocess.run([str(driver),str(source),str(d/'protected.p12'),'test-only',str(d/'test.mobileprovision'),str(output),str(work),'encrypted'])
- assert result.returncode!=0 and not output.exists() and not (work/'idk_prepared.ready').exists()
+ assert result.returncode!=0 and not output.exists() and not (work/'taif_prepared.ready').exists()
  print('PASS prepared native pipeline: encrypted Mach-O cannot receive a prepared marker or reach signing')
 
  work=d/'duplicate-work';work.mkdir();output=d/'duplicate-output.ipa'
@@ -136,7 +136,7 @@ with tempfile.TemporaryDirectory(prefix='next-smoke-') as scratch:
  assert (d/'input.ipa').read_bytes()==original
  with zipfile.ZipFile(output) as z:
   info=plistlib.loads(z.read('Payload/Smoke.app/Info.plist'))
-  assert info['CFBundleIdentifier']=='app.idkplus.smokeab'
+  assert info['CFBundleIdentifier']=='app.taifplus.smokeab'
   assert info['CFBundleDisplayName']=='Smoke ab'
   assert z.read('Payload/Smoke.app/embedded.mobileprovision')==original_profile
   extracted=d/'duplicate-verified';z.extractall(extracted)

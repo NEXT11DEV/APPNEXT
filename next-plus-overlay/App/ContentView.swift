@@ -908,7 +908,7 @@ struct ContentView: View {
             : (signer.stage(source) ?? (fallbackToSource ? source : nil))
         guard let localURL else {
             ipaURL = nil
-            preflightState = .failed("The IPA could not be copied into idk plus storage.")
+            preflightState = .failed("The IPA could not be copied into TAIF PLUS storage.")
             return
         }
 

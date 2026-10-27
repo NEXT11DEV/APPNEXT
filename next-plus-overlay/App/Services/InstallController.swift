@@ -21,13 +21,13 @@ final class InstallController: ObservableObject {
         installStatus = "تم إيقاف طلب التثبيت. ملف IPA الموقّع يبقى محفوظًا."
     }
 
-    func install(ipa: URL, bundleId: String, version: String, title: String = "idk plus") {
+    func install(ipa: URL, bundleId: String, version: String, title: String = "TAIF PLUS") {
         cancel()
         let generation = UUID(); installGeneration = generation
         installStatus = "التحقق من ملف IPA وخدمة التثبيت…"
         // Continue the manifest handoff within iOS's finite background budget,
         // overlapping the signing assertion rather than leaving a suspension gap.
-        setupBackground = UIApplication.shared.beginBackgroundTask(withName: "idk plus install manifest") { [weak self] in
+        setupBackground = UIApplication.shared.beginBackgroundTask(withName: "TAIF PLUS install manifest") { [weak self] in
             self?.cancel()
         }
         installTask = Task { [weak self] in
@@ -75,7 +75,7 @@ final class InstallController: ObservableObject {
                 guard installGeneration == generation else { return }
                 guard let url = URL(string: server.itmsServicesURL) else { throw NextFailure("رابط التثبيت غير صالح.") }
                 InstallKeepAlive.shared.start()
-                installStatus = "أُرسل طلب التثبيت إلى iOS. وافق على النافذة إن ظهرت وأبقِ idk plus مفتوحًا أثناء النقل."
+                installStatus = "أُرسل طلب التثبيت إلى iOS. وافق على النافذة إن ظهرت وأبقِ TAIF PLUS مفتوحًا أثناء النقل."
                 let opened = await UIApplication.shared.open(url, options: [:])
                 guard opened else { throw NextFailure("iOS لم يفتح طلب التثبيت. يمكنك تصدير IPA الموقّع.") }
                 endSetupBackground()

@@ -13,19 +13,19 @@ final class NextOperationActivity {
     private var bucket = -1
     private var iconData: Data?
     private var latestMessage = "جاري تجهيز التنزيل…"
-    private var latestSubtitle = "idk plus"
+    private var latestSubtitle = "TAIF PLUS"
     private var lastUnknownNotice: TimeInterval = -3
 
     func begin(title: String, iconURL: URL?, onExpiration: @escaping @MainActor @Sendable () -> Void) {
         end()
         active = true; allowed = false; bucket = -1; iconData = nil; latestMessage = "جاري تجهيز التنزيل…"
-        latestSubtitle = "idk plus"; lastUnknownNotice = -3
+        latestSubtitle = "TAIF PLUS"; lastUnknownNotice = -3
         self.title = title
-        notificationID = "idkplus.operation.\(UUID().uuidString)"
+        notificationID = "taifplus.operation.\(UUID().uuidString)"
         let generation = notificationID
-        backgroundID = UIApplication.shared.beginBackgroundTask(withName: "idk plus download and signing") { [weak self] in
+        backgroundID = UIApplication.shared.beginBackgroundTask(withName: "TAIF PLUS download and signing") { [weak self] in
             guard let self, self.notificationID == generation else { return }
-            self.stage("انتهت مهلة العمل بالخلفية. افتح idk plus وأعد المحاولة.")
+            self.stage("انتهت مهلة العمل بالخلفية. افتح TAIF PLUS وأعد المحاولة.")
             onExpiration(); self.end()
         }
         Task {
@@ -34,7 +34,7 @@ final class NextOperationActivity {
             iconData = bytes
             publish()
         }
-        let enabled = UserDefaults.standard.object(forKey: "idk.download-notifications") as? Bool ?? true
+        let enabled = UserDefaults.standard.object(forKey: "taif.download-notifications") as? Bool ?? true
         guard enabled else { return }
         Task {
             let center = UNUserNotificationCenter.current()
@@ -70,7 +70,7 @@ final class NextOperationActivity {
 
     func stage(_ message: String) {
         latestMessage = message
-        latestSubtitle = "idk plus • التنزيل والتوقيع"
+        latestSubtitle = "TAIF PLUS • التنزيل والتوقيع"
         publish()
     }
 
@@ -83,7 +83,7 @@ final class NextOperationActivity {
         content.body = String(latestMessage.prefix(240))
         content.threadIdentifier = notificationID
         if let iconData, iconData.count <= 1_024 * 1_024 {
-            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("idk-notification-icons")
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("taif-notification-icons")
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let file = directory.appendingPathComponent(UUID().uuidString + ".png")
             if (try? iconData.write(to: file)) != nil,

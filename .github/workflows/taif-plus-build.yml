@@ -1,0 +1,166 @@
+name: Build TAIF PLUS IPA
+on:
+  push:
+    branches: [taif-plus-build]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: taif-plus-build-${{ github.sha }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Assemble pinned iStore engine and TAIF PLUS source
+        run: |
+          set -euo pipefail
+          git init build-source
+          git -C build-source remote add origin https://github.com/hggdet/iStore-iOS.git
+          git -C build-source fetch --depth 1 origin fdefea2617b27374dbb79de9b23f05a728cdbe3b
+          git -C build-source checkout --detach FETCH_HEAD
+          cp -R next-plus-overlay/. build-source/
+          python3 - <<'PYDATA'
+          import gzip,pathlib
+          root=pathlib.Path('build-source')
+          resources=root/'App/Resources'
+          resources.mkdir(parents=True,exist_ok=True)
+          import json
+          catalog=json.loads(gzip.decompress(b''.join(p.read_bytes() for p in sorted(pathlib.Path('idk-assets').glob('catalog-*.part')))))
+          catalog['name']='TAIF PLUS'
+          (resources/'TAIFPlusCatalog.json').write_text(json.dumps(catalog,ensure_ascii=False,separators=(',',':')))
+          icon=b''.join(p.read_bytes() for p in sorted(pathlib.Path('taif-assets').glob('icon-*.part')))
+          import hashlib,subprocess
+          assert hashlib.sha256(icon).hexdigest()=='106fab40eb8f204e9d1a98d645d06aaf6796d125f853842b383cc36f4c915607'
+          jpeg=root/'taif-logo.jpg';jpeg.write_bytes(icon)
+          iconfile=root/'App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png'
+          subprocess.run(['sips','-s','format','png',str(jpeg),'--out',str(iconfile)],check=True)
+          target=root/'App/Assets.xcassets/TAIFPlusIcon.imageset/TAIFPlusIcon.png'
+          target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(iconfile.read_bytes())
+          import shutil
+          shutil.rmtree(root/'App/Assets.xcassets/NextPlusIcon.imageset',ignore_errors=True)
+          shutil.rmtree(root/'App/Assets.xcassets/IDKPlusIcon.imageset',ignore_errors=True)
+          PYDATA
+      - name: Verify Xcode and generate project
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          xcodegen generate
+      - name: Check saved appearance preferences
+        working-directory: build-source
+        run: |
+          swiftc App/Services/TaifAppearanceMode.swift Tests/Appearance/Checks.swift -o /tmp/taif-appearance-tests
+          /tmp/taif-appearance-tests
+      - name: Test signing policy and real loopback transport
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          swiftc -swift-version 6 App/Services/NextSigningPolicy.swift App/LocalInstallServer.swift Tests/Transport/Checks.swift -o /tmp/next-transport-tests
+          /tmp/next-transport-tests
+      - name: Check embedded catalog, hidden source policy, and actual store lifecycle
+        working-directory: build-source
+        run: python3 Tests/Sources/run.py
+      - name: Check progress throttling and large catalog indexing
+        working-directory: build-source
+        run: python3 Tests/Performance/run.py
+      - name: Exercise native zsign bridge with disposable fixtures
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          if ! brew --prefix openssl@3 >/dev/null 2>&1; then brew install openssl@3; fi
+          python3 Tests/NativeSmoke/run.py
+      - name: Verify live HTTPS install manifest
+        working-directory: build-source
+        run: python3 Tests/Manifest/check.py
+      - name: Compile TAIF PLUS
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          xcodebuild -project TAIFPlus.xcodeproj -scheme iStore \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath build/TAIFPlus.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' archive
+      - name: Package unsigned IPA
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          mkdir -p build/ipa/Payload
+          cp -R build/TAIFPlus.xcarchive/Products/Applications/TAIFPlus.app build/ipa/Payload/
+          cd build/ipa
+          /usr/bin/zip -qry ../taif-plus-unsigned.ipa Payload
+      - name: Audit packaged iOS 15 compatibility
+        working-directory: build-source
+        run: python3 Tests/Packaging/check.py build/taif-plus-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taif-plus-unsigned-IPA
+          path: build-source/build/taif-plus-unsigned.ipa
+          retention-days: 7
+          if-no-files-found: error
+      - name: Build simulator and capture real interface
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          xcodebuild -project TAIFPlus.xcodeproj -scheme iStoreUISim -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build > build/sim-build.log 2>&1 || { tail -100 build/sim-build.log; exit 1; }
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for a in d["devices"].values() for x in a if "iPhone" in x["name"]))')
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" build/sim/Build/Products/Debug-iphonesimulator/TAIFPlusUISim.app
+          mkdir -p build/screenshots
+          for TAB in 0 1 2; do
+            SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB="$TAB" xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
+            sleep 5
+            xcrun simctl io "$DEVICE" screenshot "build/screenshots/tab-$TAB.png"
+            xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+          done
+          SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_TAIF_UI_DETAILS=1 xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
+          sleep 5
+          xcrun simctl io "$DEVICE" screenshot build/screenshots/app-details.png
+          xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+          SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_TAIF_UI_TRANSFER=1 xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
+          sleep 4
+          xcrun simctl io "$DEVICE" screenshot build/screenshots/download-hud.png
+          xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+          SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_TAIF_UI_SETUP=1 xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
+          sleep 3
+          xcrun simctl io "$DEVICE" screenshot build/screenshots/setup.png
+          xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+          xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
+          sleep 3
+          xcrun simctl io "$DEVICE" screenshot build/screenshots/activation.png
+          xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+      - name: Capture both approved color modes
+        working-directory: build-source
+        run: |
+          set -euo pipefail
+          DEVICE=$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for a in d["devices"].values() for x in a if "iPhone" in x["name"]))')
+          for MODE in light dark; do
+            xcrun simctl ui "$DEVICE" appearance "$MODE"
+            SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB=0 SIMCTL_CHILD_TAIF_UI_THEME="$MODE" xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
+            sleep 4
+            xcrun simctl io "$DEVICE" screenshot "build/screenshots/store-$MODE.png"
+            xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+            SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB=2 SIMCTL_CHILD_TAIF_UI_THEME="$MODE" xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
+            sleep 2
+            xcrun simctl io "$DEVICE" screenshot "build/screenshots/settings-$MODE.png"
+            xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: taif-plus-validation
+          path: |
+            build-source/build/screenshots
+            build-source/build/sim-build.log
+          retention-days: 7
+
+

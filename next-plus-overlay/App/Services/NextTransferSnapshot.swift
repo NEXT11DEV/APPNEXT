@@ -14,7 +14,7 @@ struct NextTransferSnapshot: Equatable, Sendable {
         return actual + " / " + ByteCountFormatter.string(fromByteCount: expected, countStyle: .file)
     }
     var notificationSubtitle: String {
-        percent.map { "idk plus • جاري التنزيل (\($0)٪)" } ?? "idk plus • جاري التنزيل"
+        percent.map { "TAIF PLUS • جاري التنزيل (\($0)٪)" } ?? "TAIF PLUS • جاري التنزيل"
     }
     var notificationBody: String {
         notificationText.split(separator: "\n", omittingEmptySubsequences: false).dropFirst().joined(separator: "\n")

@@ -157,7 +157,7 @@ final class NextSigningCoordinator: ObservableObject {
                 phase = .ready; detail = "تم التوقيع. جاري فتح طلب التثبيت؛ وافق على نافذة iOS عند ظهورها."
                 record("نجح التوقيع؛ النسخة محفوظة في المكتبة")
                 recordDuration("الإجمالي قبل طلب التثبيت", since: operationStarted)
-                activity.stage("اكتمل التوقيع. وافق على نافذة التثبيت، أو افتح idk plus لإعادة طلبها.")
+                activity.stage("اكتمل التوقيع. وافق على نافذة التثبيت، أو افتح TAIF PLUS لإعادة طلبها.")
                 installSigned()
             } catch is CancellationError {
                 activity.stage("تم إلغاء العملية.")

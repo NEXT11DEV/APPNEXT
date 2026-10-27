@@ -105,8 +105,8 @@ static bool FSPreparedValid(const string& archive, const string& temp, const str
     struct stat st;
     string realTemp = FSReal(temp);
     if (realTemp.empty() || lstat(folder.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)
-        || FSReal(folder) != realTemp + "/idk_prepared") return false;
-    string marker = realTemp + "/idk_prepared.ready";
+        || FSReal(folder) != realTemp + "/taif_prepared") return false;
+    string marker = realTemp + "/taif_prepared.ready";
     if (lstat(marker.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) return false;
     ifstream input(marker, ios::binary);
     string saved((istreambuf_iterator<char>(input)), istreambuf_iterator<char>());
@@ -248,7 +248,7 @@ static int FSSignIPA(const char* ipaPath,
         }
         // Consume the marker before mutating the extracted app. Never reuse a
         // previously signed tree or a prepared tree from a different request.
-        remove((FSReal(strTemp) + "/idk_prepared.ready").c_str());
+        remove((FSReal(strTemp) + "/taif_prepared.ready").c_str());
     } else {
         strFolder = ZFile::GetRealPathV("%s/fs_folder_%llu", strTemp.c_str(), ZUtil::GetMicroSecond());
         if (!Zip::Extract(strIpa.c_str(), strFolder.c_str())) {
@@ -714,7 +714,7 @@ static int FSInspectIPA(const char* ipaPath,
         return 4;
     }
 
-    string strFolder = retainPrepared ? FSReal(strTemp) + "/idk_prepared"
+    string strFolder = retainPrepared ? FSReal(strTemp) + "/taif_prepared"
         : ZFile::GetRealPathV("%s/fs_inspect_%llu", strTemp.c_str(), ZUtil::GetMicroSecond());
     if (retainPrepared && ZFile::IsFolder(strFolder.c_str())) {
         setMsg("Prepared folder already exists; start a new operation.");
@@ -816,7 +816,7 @@ static int FSInspectIPA(const char* ipaPath,
     snprintf(jsonBuf, jsonBufLen, "%s", json.c_str());
     if (keep) {
         string stamp = FSPreparedStamp(strIpa);
-        ofstream marker(FSReal(strTemp) + "/idk_prepared.ready", ios::binary | ios::trunc);
+        ofstream marker(FSReal(strTemp) + "/taif_prepared.ready", ios::binary | ios::trunc);
         marker << stamp;
         marker.close();
         if (stamp.empty() || !marker) {

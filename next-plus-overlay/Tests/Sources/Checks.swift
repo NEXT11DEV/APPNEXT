@@ -25,7 +25,7 @@ import Foundation
         let rawApps = raw["apps"] as! [[String: Any]]
         let decoded = try JSONDecoder().decode(RepoSource.self, from: data)
         precondition(rawApps.count == 20419 && decoded.apps.count == rawApps.count)
-        precondition(decoded.name == "idk plus")
+        precondition(decoded.name == "TAIF PLUS")
         precondition(decoded.apps.allSatisfy { $0.downloadURL != nil })
         print("PASS: built-in catalog is seeded, hidden, protected from removal, normalized on upgrade; all \(decoded.apps.count) attached catalog entries decode")
     }

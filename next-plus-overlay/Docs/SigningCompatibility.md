@@ -1,6 +1,6 @@
 # Signing identifier compatibility
 
-idk plus 1.1.2 treats a textual difference between an app bundle identifier
+TAIF PLUS 1.1.2 treats a textual difference between an app bundle identifier
 and a provisioning profile application identifier as a diagnostic, rather than
 a reason to reject the operation before zsign runs.
 
@@ -14,7 +14,7 @@ The app also contains references to the Ksign project. Its public signing handle
 passes the certificate, profile, and optional custom bundle identifier separately:
 https://github.com/Nyasami/Ksign/blob/main/Ksign/Utilities/Handlers/ZsignHandler.swift
 
-idk plus keeps the app's existing bundle identifier and passes the selected
+TAIF PLUS keeps the app's existing bundle identifier and passes the selected
 profile to the existing signing engine. It does not rewrite all apps to the
 profile's identifier or modify the signed profile to add wildcard permissions.
 Certificate loading, password, expiry, and team checks remain in place. The

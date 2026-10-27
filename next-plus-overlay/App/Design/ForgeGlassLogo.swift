@@ -17,7 +17,7 @@ struct ForgeGlassLogoView: View {
                 RoundedRectangle(cornerRadius: size * 0.30, style: .continuous)
                     .stroke(T.rule, lineWidth: AppStroke.hairline)
             }
-            .accessibilityLabel("idk plus")
+            .accessibilityLabel("TAIF PLUS")
     }
 }
 

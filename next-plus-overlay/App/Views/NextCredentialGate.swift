@@ -29,7 +29,7 @@ struct NextCredentialGate<Content: View>: View {
     private var previewEnabled: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.environment["NEXT_UI_PREVIEW"] == "1"
-            && ProcessInfo.processInfo.environment["IDK_UI_SETUP"] != "1"
+            && ProcessInfo.processInfo.environment["TAIF_UI_SETUP"] != "1"
         #else
         return false
         #endif
@@ -53,7 +53,7 @@ struct NextCredentialGate<Content: View>: View {
                     Form {
                         Section {
                             HStack(spacing: 14) {
-                                Image("IDKPlusIcon").resizable().frame(width: 66, height: 66)
+                                Image("TAIFPlusIcon").resizable().frame(width: 66, height: 66)
                                     .clipShape(RoundedRectangle(cornerRadius: 18))
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("إعداد توقيعك").font(.title2.bold())
@@ -108,7 +108,7 @@ struct NextCredentialGate<Content: View>: View {
                             Text("نفحص فتح P12 وكلمة مروره وصلاحية الملفات وتوافق فريق التوقيع داخل جهازك. الملفات اليدوية تُفحص محليًا، والملفات المرتبطة بكودك تُجلب من خدمة المتجر عبر HTTPS.")
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
-                    }.navigationTitle("idk plus")
+                    }.taifFormSurface().navigationTitle("TAIF PLUS")
                 }.navigationViewStyle(StackNavigationViewStyle())
             }
         }
@@ -152,8 +152,8 @@ struct NextCredentialGate<Content: View>: View {
             defer { try? FileManager.default.removeItem(at: folder) }
             do {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                let p12URL = folder.appendingPathComponent("idk-subscription.p12")
-                let profileURL = folder.appendingPathComponent("idk-subscription.mobileprovision")
+                let p12URL = folder.appendingPathComponent("taif-subscription.p12")
+                let profileURL = folder.appendingPathComponent("taif-subscription.mobileprovision")
                 try p12.write(to: p12URL, options: .completeFileProtection)
                 try profile.write(to: profileURL, options: .completeFileProtection)
                 let secret = delivery.password

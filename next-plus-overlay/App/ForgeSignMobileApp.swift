@@ -13,6 +13,7 @@ struct ForgeSignMobileApp: App {
     @UIApplicationDelegateAdaptor(ForgeApplicationDelegate.self) private var appDelegate
     @StateObject private var certificates = CertificateStore()
     @StateObject private var profiles = ProfileStore()
+    @AppStorage(TaifAppearanceMode.preferenceKey) private var appearanceMode = TaifAppearanceMode.system.rawValue
     @AppStorage("app.language") private var languageCode = AppLanguage.arabic.rawValue
 
     var body: some Scene {
@@ -27,6 +28,8 @@ struct ForgeSignMobileApp: App {
             .environment(\.layoutDirection, .rightToLeft)
             .environmentObject(certificates)
             .environmentObject(profiles)
+            .tint(TaifPalette.accent)
+            .preferredColorScheme(TaifPalette.scheme(appearanceMode))
         }
     }
 }

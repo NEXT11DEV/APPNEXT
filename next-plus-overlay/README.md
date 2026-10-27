@@ -1,15 +1,15 @@
-# idk plus 1.3.0
+# TAIF PLUS 1.3.0
 
 iOS 15+ app library and on-device IPA signing, derived from NEXT PlUS 1.2.1.
 
-- Separate bundle identifier: `app.idkplus.store`.
-- All first-party screens and both icon asset sets use idk plus.
+- Separate bundle identifier: `app.taifplus.store`.
+- All first-party screens and both icon asset sets use TAIF PLUS.
 - The attached 20,419-entry JSON catalog is shipped in the app, decoded offline, and indexed with the existing catalog cache/index optimizations.
 - The built-in repository is hidden from source management and cannot be removed through RepositoryStore. User-added sources remain manageable.
 - This is a bundled catalog snapshot. New catalog versions require an app update until the owner provides a persistent live feed.
 - Source URLs are not secrets; hidden means absent from the management interface.
 - Existing on-device certificate/profile checks, native signing, automatic iOS installation request, and export remain.
-- Offline subscriptions use the separate idk plus app identity and owner-only issuer; private keys are never in source or IPA.
+- Offline subscriptions use the separate TAIF PLUS app identity and owner-only issuer; private keys are never in source or IPA.
 
 The GitHub workflow assembles the pinned upstream engine and this overlay, expands `idk-catalog.json.gz` into the app bundle, validates the real service lifecycle, native signing, transport, packaged deployment target and identity, and captures the simulator interface.
 
@@ -23,7 +23,7 @@ Retain the upstream source licenses. This app retains the original signing engin
 - The heavy catalog store is mounted only after both gates pass.
 - Catalog and search retain 30 visible matches initially, extending the visible window by 30 on scroll or the explicit load-more button. A search scans the entire catalog, not only the visible page.
 - The JSON metadata snapshot is still decoded locally once; paging limits list rows and associated icon loads, rather than changing the JSON into a remote paged API.
-- New navy/cyan idk plus icon. Bundle ID and IDK1 license public key remain unchanged.
+- New navy/cyan TAIF PLUS icon. Bundle ID and TAIF1 license public key remain unchanged.
 
 ## 1.2.0
 

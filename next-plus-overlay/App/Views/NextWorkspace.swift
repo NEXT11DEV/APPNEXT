@@ -1,11 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-private enum NextStyle {
-    static let accent = Color(red: 0.08, green: 0.49, blue: 0.92)
-    static let page = Color(red: 0.94, green: 0.97, blue: 0.99)
-    static let card = Color.white
-}
+private typealias NextStyle = TaifPalette
 
 struct NextWorkspace: View {
     @ObservedObject var certificates: CertificateStore
@@ -14,7 +10,8 @@ struct NextWorkspace: View {
     @ObservedObject var installer: InstallController
     @ObservedObject var repositories: RepositoryStore
     @StateObject private var signing: NextSigningCoordinator
-    @AppStorage("idk.download-notifications") private var downloadNotifications = true
+    @AppStorage(TaifAppearanceMode.preferenceKey) private var appearanceMode = TaifAppearanceMode.system.rawValue
+    @AppStorage("taif.download-notifications") private var downloadNotifications = true
     @State private var tab = 0
     @State private var query = ""
     @State private var selectedApp: RepoApp?
@@ -84,7 +81,7 @@ struct NextWorkspace: View {
         }
         .navigationViewStyle(StackNavigationViewStyle())
         .tint(NextStyle.accent)
-        .preferredColorScheme(.light)
+        
         .sheet(item: $selectedApp) { app in
             NextAppDetails(app: app, busy: signing.busy) { selected, copy in
                 signing.start(copy ? .repositoryCopy(selected) : .repository(selected))
@@ -134,8 +131,8 @@ struct NextWorkspace: View {
             dockButton("الإعدادات", symbol: "slider.horizontal.3", value: 2)
         }
         .padding(6).frame(maxWidth: 340)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Color.primary.opacity(0.06), lineWidth: 1))
+        .background(NextStyle.card, in: RoundedRectangle(cornerRadius: 25))
+        .overlay(RoundedRectangle(cornerRadius: 25).stroke(TaifPalette.line, lineWidth: 1))
         .shadow(color: .black.opacity(0.09), radius: 18, y: 5)
         .padding(.horizontal, 24).padding(.top, 6).padding(.bottom, 8)
     }
@@ -165,7 +162,7 @@ struct NextWorkspace: View {
         }
         else {
         #if DEBUG
-        if ProcessInfo.processInfo.environment["IDK_UI_TRANSFER"] == "1" {
+        if ProcessInfo.processInfo.environment["TAIF_UI_TRANSFER"] == "1" {
             NextTransferBanner(title: "معاينة التنزيل · Example.ipa", iconURL: nil, fraction: 0.42,
                 detail: "13.4 MB / 32 MB", ready: false, onOpen: {}, onClose: {})
                 .padding(.horizontal, 14).padding(.top, 4).padding(.bottom, 6)
@@ -181,11 +178,11 @@ struct NextWorkspace: View {
                     VStack(alignment: .leading, spacing: 14) {
                         Color.clear.frame(height: 0).id("catalog-top")
                         storeToolbar
-                        if query.isEmpty { storeHero }
+                        if query.isEmpty { storeHero; channelCard }
                         searchField
                         categoryPicker
                         HStack {
-                            Text(query.isEmpty ? "اكتشف المكتبة" : "نتائج البحث")
+                            Text(query.isEmpty ? "اختيارات تستاهل" : "نتائج البحث")
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
                             Spacer()
                             Text(query.isEmpty ? "\(apps.count) / \(allApps.count)" : "\(apps.count) نتيجة\(hasMoreApps ? "+" : "")")
@@ -221,7 +218,7 @@ struct NextWorkspace: View {
                     while !repositories.catalogCacheLoaded { try? await Task.sleep(nanoseconds: 20_000_000) }
                     await refresh()
                     #if DEBUG
-                    if ProcessInfo.processInfo.environment["IDK_UI_DETAILS"] == "1", let first = allApps.first { selectedApp = first }
+                    if ProcessInfo.processInfo.environment["TAIF_UI_DETAILS"] == "1", let first = allApps.first { selectedApp = first }
                     #endif
                 }
             }
@@ -231,10 +228,11 @@ struct NextWorkspace: View {
     private var storeToolbar: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("idk plus").font(.system(size: 22, weight: .black, design: .rounded))
-                Text("متجرك، على كيفك").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                Text("TAIF PLUS").font(.system(size: 22, weight: .semibold, design: .serif)).tracking(0.8)
+                Text("طابع مختلف. تجربة أرقى.").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
             }
             Spacer()
+            TaifAppearanceMenu()
             Button { Task { await refresh() } } label: {
                 Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .semibold)).frame(width: 32, height: 32)
             }.accessibilityLabel("تحديث المكتبة").disabled(repositories.loadingRepoID != nil)
@@ -246,71 +244,58 @@ struct NextWorkspace: View {
     }
 
     private var storeHero: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top) {
-                Label("مساحتك للتطبيقات", systemImage: "sparkles")
-                    .font(.system(size: 10, weight: .bold)).padding(.horizontal, 11).padding(.vertical, 7)
-                    .background(.white.opacity(0.13), in: Capsule())
-                Spacer()
-                Image("IDKPlusIcon").resizable().frame(width: 49, height: 49)
-                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                    .rotationEffect(.degrees(-8))
-                    .shadow(color: .black.opacity(0.2), radius: 12, y: 5)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("كل جديد.\nعلى كيفك.")
-                    .font(.system(size: 34, weight: .black, design: .rounded)).lineSpacing(1)
-                Text("اكتشف، وقّع، وخلّها بجهازك.")
-                    .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.8))
-            }
-            Link(destination: URL(string: "https://t.me/xar_ipa")!) {
-                HStack(spacing: 8) {
-                    Image(systemName: "paperplane.fill")
-                    Text("التحديثات والتطوير")
-                    Spacer(minLength: 8)
-                    Image(systemName: "arrow.up.left")
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("TAIF / COLLECTION").font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2).foregroundColor(.white.opacity(0.65))
+                    Text("كل جديد،\nبطابعك.").font(.system(size: 32, weight: .bold, design: .rounded)).lineSpacing(0)
+                    Text("تطبيقات وألعاب تختارها بطريقتك").font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.75))
                 }
-                .font(.system(size: 12, weight: .bold))
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 14))
+                Spacer(minLength: 0)
+                Image("TAIFPlusIcon").resizable().scaledToFit().frame(width: 82, height: 82)
+                    .clipShape(RoundedRectangle(cornerRadius: 21)).rotationEffect(.degrees(-6))
+                    .overlay(RoundedRectangle(cornerRadius: 21).stroke(.white.opacity(0.20), lineWidth: 1).rotationEffect(.degrees(-6)))
             }
-            .buttonStyle(.plain)
-            .accessibilityHint("يفتح قناة المتجر على تليغرام")
             HStack {
-                HStack(spacing: 7) {
-                    Circle().fill(Color.cyan).frame(width: 6, height: 6)
-                    Text("توقيع من جهازك").font(.system(size: 10, weight: .semibold))
-                }
+                Label("بشهادتك. على جهازك.", systemImage: "checkmark.shield.fill")
+                    .font(.system(size: 10, weight: .medium)).foregroundColor(.white.opacity(0.8))
                 Spacer()
                 Button { tab = 2 } label: {
-                    HStack(spacing: 6) {
-                        Text("ملفات التوقيع")
-                        Image(systemName: "arrow.up.left")
-                    }.font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(.white.opacity(0.16), in: Capsule())
+                    HStack(spacing: 5) { Text("ملفات التوقيع"); Image(systemName: "arrow.up.left") }
+                        .font(.system(size: 10, weight: .semibold)).padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(.white.opacity(0.12), in: Capsule())
                 }.buttonStyle(.plain)
-            }
+            }.padding(.top, 22)
         }
         .foregroundColor(.white).padding(22).frame(maxWidth: .infinity, alignment: .leading)
         .background {
             GeometryReader { geometry in
-                ZStack(alignment: .bottomLeading) {
-                    LinearGradient(colors: [Color(red: 0.025, green: 0.19, blue: 0.46), Color(red: 0.02, green: 0.46, blue: 0.86)], startPoint: .topTrailing, endPoint: .bottomLeading)
-                    Circle().fill(Color.cyan.opacity(0.18)).frame(width: 240, height: 240)
-                        .offset(x: -100, y: 90)
-                    Circle().stroke(.white.opacity(0.12), lineWidth: 1).frame(width: 270, height: 270)
-                        .offset(x: -70, y: 80)
-                    Circle().stroke(.white.opacity(0.10), lineWidth: 28).frame(width: 160, height: 160)
-                        .offset(x: -30, y: 40)
-                    Image(systemName: "arrow.up.right").font(.system(size: 92, weight: .black))
-                        .foregroundColor(.white.opacity(0.09)).position(x: geometry.size.width * 0.17, y: geometry.size.height * 0.57)
-                }
+                ZStack {
+                    TaifPalette.hero
+                    Ellipse().fill(.white.opacity(0.045)).frame(width: 390, height: 95).rotationEffect(.degrees(-28)).offset(x: -80, y: 110)
+                    Ellipse().stroke(.white.opacity(0.15), lineWidth: 0.7).frame(width: 410, height: 180).rotationEffect(.degrees(-28)).offset(x: -110, y: 120)
+                    Ellipse().stroke(TaifPalette.cherry.opacity(0.45), lineWidth: 8).frame(width: 420, height: 150).rotationEffect(.degrees(-28)).offset(x: -120, y: 120).blur(radius: 5)
+                }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 29))
-        .overlay(RoundedRectangle(cornerRadius: 29).stroke(.white.opacity(0.35), lineWidth: 1))
-        .shadow(color: NextStyle.accent.opacity(0.18), radius: 18, y: 9)
+        .clipShape(RoundedRectangle(cornerRadius: 25))
+        .shadow(color: TaifPalette.ruby.opacity(0.18), radius: 16, y: 8)
+        .overlay(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 2).fill(.white.opacity(0.22)).frame(width: 45, height: 2).padding(.bottom, 8)
+        }
+    }
+
+    private var channelCard: some View {
+        Link(destination: URL(string: "https://t.me/tife_store")!) {
+            HStack(spacing: 10) {
+                Image(systemName: "paperplane.fill").font(.system(size: 14))
+                Text("التحديثات والتطوير").font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Text("قناة TAIF").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                Image(systemName: "arrow.up.left").font(.system(size: 11, weight: .semibold))
+            }.foregroundStyle(TaifPalette.accent).padding(.horizontal, 15).padding(.vertical, 13)
+                .background(TaifPalette.inset, in: RoundedRectangle(cornerRadius: 15))
+        }.buttonStyle(.plain)
     }
 
     private var searchField: some View {
@@ -325,16 +310,16 @@ struct NextWorkspace: View {
     }
 
     private var categoryPicker: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 3) {
             ForEach(["الكل", "تطبيقات", "ألعاب"], id: \.self) { value in
                 Button { category = value } label: {
                     Text(value).font(.system(size: 12, weight: .semibold))
-                        .frame(maxWidth: .infinity).padding(.vertical, 8)
+                        .frame(maxWidth: .infinity).padding(.vertical, 9)
                         .foregroundStyle(category == value ? Color.white : Color.secondary)
-                        .background(category == value ? NextStyle.accent : NextStyle.card, in: Capsule())
+                        .background(category == value ? TaifPalette.ruby : Color.clear, in: Capsule())
                 }.buttonStyle(.plain)
             }
-        }
+        }.padding(4).background(TaifPalette.inset, in: Capsule())
     }
 
     private func appCard(_ app: RepoApp) -> some View {
@@ -351,7 +336,7 @@ struct NextWorkspace: View {
                                 Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
                             }
                         }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
-                        Text("التفاصيل والإصدارات  ‹").font(.system(size: 9, weight: .semibold)).foregroundStyle(NextStyle.accent)
+                        Text("عرض التفاصيل  ‹").font(.system(size: 9, weight: .semibold)).foregroundStyle(NextStyle.accent)
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("تفاصيل \(app.name)")
@@ -360,9 +345,9 @@ struct NextWorkspace: View {
                     HStack(spacing: 4) {
                         if signing.busy && signing.title == app.name { ProgressView().tint(.white).scaleEffect(0.7) }
                         else { Image(systemName: "arrow.down").font(.system(size: 9, weight: .bold)) }
-                        Text("تنزيل").font(.system(size: 11, weight: .bold))
+                        Text("تثبيت").font(.system(size: 11, weight: .bold))
                     }.frame(width: 70, height: 32).foregroundColor(.white)
-                        .background(LinearGradient(colors: [NextStyle.accent, Color(red: 0.03, green: 0.64, blue: 0.90)], startPoint: .trailing, endPoint: .leading), in: Capsule())
+                        .background(LinearGradient(colors: [NextStyle.accent, TaifPalette.ruby], startPoint: .trailing, endPoint: .leading), in: Capsule())
                         .shadow(color: NextStyle.accent.opacity(0.20), radius: 7, y: 3)
                 }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
                 Menu {
@@ -375,9 +360,9 @@ struct NextWorkspace: View {
                 }.accessibilityLabel("خيارات \(app.name)")
             }
         }
-        .padding(14).background(.white, in: RoundedRectangle(cornerRadius: 23))
-        .overlay(RoundedRectangle(cornerRadius: 23).stroke(Color(red: 0.85, green: 0.91, blue: 0.96), lineWidth: 1))
-        .shadow(color: Color(red: 0.15, green: 0.35, blue: 0.55).opacity(0.045), radius: 10, y: 4)
+        .padding(14).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(TaifPalette.line, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.045), radius: 10, y: 4)
     }
 
     private var library: some View {
@@ -471,12 +456,19 @@ struct NextWorkspace: View {
             Form {
                 Section {
                     HStack(spacing: 15) {
-                        Image("IDKPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
+                        Image("TAIFPlusIcon").resizable().frame(width: 62, height: 62).clipShape(RoundedRectangle(cornerRadius: 17))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("idk plus").font(.title2.bold())
-                            Text("1.7.1").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            Text("TAIF PLUS").font(.title2.bold())
+                            Text("1.0.0").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }.padding(.vertical, 8)
+                }
+                Section("المظهر") {
+                    Picker("وضع العرض", selection: $appearanceMode) {
+                        ForEach(TaifAppearanceMode.allCases) { mode in Text(mode.title).tag(mode.rawValue) }
+                    }.pickerStyle(.segmented)
+                    Text("الفاتح أبيض صافي، والداكن فحمي. تلقائي يتبع مظهر الجهاز، ونحفظ اختيارك للمرة الجاية.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("التوقيع داخل جهازك") {
                     Button { showCertificates = true } label: { settingRow("شهادة P12", value: certificates.selected?.displayName ?? "أضف الشهادة", icon: "key.fill") }
@@ -502,12 +494,17 @@ struct NextWorkspace: View {
                     Button { showSources = true } label: { settingRow("مصادر التطبيقات", value: "\(repositories.visibleRepositories.count) مصدر", icon: "shippingbox.fill") }
                     Button { showImporter = true; tab = 1 } label: { settingRow("استيراد IPA", value: "من ملفات جهازك", icon: "square.and.arrow.down.fill") }
                 }
-                Section("اشتراك idk plus") { NextSubscriptionDetails() }
+                Section("تواصل مع TAIF") {
+                    Link(destination: URL(string: "https://t.me/tife_store")!) { Label("قناة المتجر", systemImage: "paperplane.fill") }
+                    Link(destination: URL(string: "https://t.me/tife_store1")!) { Label("المالك", systemImage: "person.crop.circle.badge.checkmark") }
+                    Link(destination: URL(string: "https://t.me/YG8_1")!) { Label("المشرف والمطور", systemImage: "curlybraces") }
+                }
+                Section("اشتراك TAIF PLUS") { NextSubscriptionDetails() }
                 Section {
                     Text("بعد نجاح التوقيع يفتح طلب iOS تلقائيًا؛ وافق على النافذة. قبول التثبيت يعتمد على صلاحية شهادة Apple وتوافق ملف provisioning مع جهازك.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-            }.navigationTitle("الإعدادات")
+            }.taifFormSurface().navigationTitle("الإعدادات")
         }
     }
 
@@ -553,16 +550,16 @@ private struct NextTransferBanner: View {
             Button(action: onOpen) {
                 HStack(spacing: 10) {
                     if let iconURL { CachedAppIcon(url: iconURL, size: 38, cornerRadius: 11) }
-                    else { Image("IDKPlusIcon").resizable().frame(width: 38, height: 38).clipShape(RoundedRectangle(cornerRadius: 11)) }
+                    else { Image("TAIFPlusIcon").resizable().frame(width: 38, height: 38).clipShape(RoundedRectangle(cornerRadius: 11)) }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
                         Text(detail).font(.system(size: 10)).foregroundColor(.white.opacity(0.65)).lineLimit(1)
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     ZStack {
                         Circle().stroke(.white.opacity(0.12), lineWidth: 2)
-                        if ready { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(.cyan) }
+                        if ready { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(TaifPalette.cherry) }
                         else if let fraction {
-                            Circle().trim(from: 0, to: fraction).stroke(Color.cyan, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
+                            Circle().trim(from: 0, to: fraction).stroke(TaifPalette.cherry, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
                             Text("\(Int(fraction * 100))").font(.system(size: 8, weight: .bold, design: .rounded))
                         } else { ProgressView().tint(.white).scaleEffect(0.65) }
                     }.frame(width: 28, height: 28)
@@ -574,8 +571,8 @@ private struct NextTransferBanner: View {
             }.buttonStyle(.plain).accessibilityLabel(ready ? "إخفاء" : "إلغاء العملية")
         }
         .foregroundColor(.white).padding(.horizontal, 12).padding(.vertical, 10)
-        .background(Color(red: 0.025, green: 0.04, blue: 0.075), in: RoundedRectangle(cornerRadius: 23))
-        .overlay(RoundedRectangle(cornerRadius: 23).stroke(Color.cyan.opacity(0.18), lineWidth: 0.8))
+        .background(Color(red: 0.06, green: 0.045, blue: 0.055), in: RoundedRectangle(cornerRadius: 23))
+        .overlay(RoundedRectangle(cornerRadius: 23).stroke(TaifPalette.cherry.opacity(0.18), lineWidth: 0.8))
         .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
     }
 }

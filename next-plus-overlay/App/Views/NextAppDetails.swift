@@ -6,7 +6,7 @@ struct NextAppDetails: View {
     let install: (RepoApp, Bool) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
-    private let accent = Color(red: 0.08, green: 0.49, blue: 0.92)
+    private let accent = TaifPalette.accent
 
     var body: some View {
         NavigationView {
@@ -60,7 +60,7 @@ struct NextAppDetails: View {
                     }
                     if let error { Text(error).font(.caption).foregroundColor(.red) }
                 }.padding(20)
-            }.navigationTitle("تفاصيل التطبيق").navigationBarTitleDisplayMode(.inline)
+            }.background(TaifPalette.page).navigationTitle("تفاصيل التطبيق").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }
         }.navigationViewStyle(StackNavigationViewStyle()).tint(accent)
     }

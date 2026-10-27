@@ -19,15 +19,15 @@ def versions(b):
    o+=s
 
 with zipfile.ZipFile(sys.argv[1]) as z:
- info=plistlib.loads(z.read('Payload/IDKPlus.app/Info.plist'))
+ info=plistlib.loads(z.read('Payload/TAIFPlus.app/Info.plist'))
  assert info['MinimumOSVersion']=='15.0',info['MinimumOSVersion']
- assert info['CFBundleIdentifier']=='app.idkplus.store'
- assert info['CFBundleDisplayName']=='idk plus'
+ assert info['CFBundleIdentifier']=='app.taifplus.store'
+ assert info['CFBundleDisplayName']=='TAIF PLUS'
  import json
- catalog=json.loads(z.read('Payload/IDKPlus.app/IDKPlusCatalog.json'))
+ catalog=json.loads(z.read('Payload/TAIFPlus.app/TAIFPlusCatalog.json'))
  assert len(catalog['apps'])==20419
- assert 'Payload/IDKPlus.app/NextPlusIcon.png' not in z.namelist()
- main=versions(z.read('Payload/IDKPlus.app/IDKPlus'))
+ assert 'Payload/TAIFPlus.app/NextPlusIcon.png' not in z.namelist()
+ main=versions(z.read('Payload/TAIFPlus.app/TAIFPlus'))
  assert list(main)==[15<<16],'Main executable must target iOS 15.0'
  native=0
  for name in z.namelist():

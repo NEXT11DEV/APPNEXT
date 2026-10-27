@@ -22,19 +22,19 @@ final class NextLicenseStore: ObservableObject {
     }
     @Published var deliveredCredential: DeliveredCredential?
 
-    static let publicKeyBase64 = "HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA="
+    static let publicKeyBase64 = "yMFlyNPeTyazhCFLXQQa6CV/tf5Zgj8R5RjfQbpzJgQ="
     @Published private(set) var license: License?
     @Published var message = ""
     @Published private(set) var activating = false
     let installationID: String
-    private let vault = "app.idkplus.activation.v1"
+    private let vault = "app.taifplus.activation.v1"
 
     init() {
-        if let saved = Self.read("installation", service: "app.idkplus.activation.v1") {
+        if let saved = Self.read("installation", service: "app.taifplus.activation.v1") {
             installationID = saved
         } else {
             installationID = UUID().uuidString.uppercased()
-            if !Self.write(installationID, account: "installation", service: "app.idkplus.activation.v1") {
+            if !Self.write(installationID, account: "installation", service: "app.taifplus.activation.v1") {
                 message = "تعذر حفظ معرّف التطبيق. لا تطلب كودًا حتى تعيد فتح التطبيق ويثبت المعرّف."
             }
         }
@@ -68,13 +68,13 @@ final class NextLicenseStore: ObservableObject {
     func activateInput(_ input: String) async {
         guard !activating else { return }
         let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.hasPrefix("IDK1.") { activate(value); return }
-        guard value.count == 12, value.lowercased().hasPrefix("idk"),
-              value.range(of: "^[iI][dD][kK][23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz]{9}$", options: .regularExpression) != nil else {
-            message = "أدخل الكود كاملًا: 12 خانة تبدأ بـ idk."
+        if value.hasPrefix("TAIF1.") { activate(value); return }
+        guard value.count == 12, value.lowercased().hasPrefix("taif"),
+              value.range(of: "^[tT][aA][iI][fF][23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz]{8}$", options: .regularExpression) != nil else {
+            message = "أدخل الكود كاملًا: 12 خانة تبدأ بـ taif."
             return
         }
-        guard let origin = Bundle.main.object(forInfoDictionaryKey: "IDKActivationURL") as? String,
+        guard let origin = Bundle.main.object(forInfoDictionaryKey: "TAIFActivationURL") as? String,
               let base = URL(string: origin), base.scheme == "https", base.host != nil,
               base.user == nil, base.password == nil, base.query == nil, base.fragment == nil else {
             message = "خدمة الأكواد القصيرة لم تُربط بهذه النسخة بعد. استخدم التفعيل الطويل مؤقتًا."
@@ -124,14 +124,14 @@ final class NextLicenseStore: ObservableObject {
 
     private func verify(_ token: String) -> License? {
         let parts = token.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 3, parts[0] == "IDK1",
+        guard parts.count == 3, parts[0] == "TAIF1",
               let publicData = Data(base64Encoded: Self.publicKeyBase64),
               let publicKey = try? Curve25519.Signing.PublicKey(rawRepresentation: publicData),
               let signature = Self.decodeURLBase64(String(parts[2])),
               publicKey.isValidSignature(signature, for: Data(parts[1].utf8)),
               let payload = Self.decodeURLBase64(String(parts[1])),
               let value = try? JSONDecoder().decode(License.self, from: payload),
-              value.app == "app.idkplus.store", value.subject == installationID,
+              value.app == "app.taifplus.store", value.subject == installationID,
               value.issued <= Int64(Date().timeIntervalSince1970) + 300,
               value.expires > Int64(Date().timeIntervalSince1970), value.expires > value.issued
         else { return nil }

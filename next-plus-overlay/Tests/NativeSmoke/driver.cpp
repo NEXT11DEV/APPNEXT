@@ -8,7 +8,7 @@ int main(int argc, char** argv) {
     if (argc != 7 && argc != 8) return 90;
     char message[2048] = {}, bid[512] = {}, version[128] = {};
     std::string mode = argc == 8 ? argv[7] : "legacy";
-    std::string prepared = std::string(argv[6]) + "/idk_prepared";
+    std::string prepared = std::string(argv[6]) + "/taif_prepared";
     int status;
     if (mode != "legacy") {
         char json[32768] = {};
@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
             std::ofstream proof(prepared + "/Payload/Smoke.app/prepared-proof.txt");
             proof << "prepared tree was reused";
         }
-        const char* copiedID = mode == "duplicate" ? "app.idkplus.smokeab" : nullptr;
+        const char* copiedID = mode == "duplicate" ? "app.taifplus.smokeab" : nullptr;
         const char* copiedName = mode == "duplicate" ? "Smoke ab" : nullptr;
         status = forgesign_sign_prepared_ipa(argv[1], argv[2], argv[3], argv[4], copiedID, copiedName, nullptr,
             nullptr, argv[5], argv[6], 0, 0, message, sizeof(message), bid, sizeof(bid), version, sizeof(version), prepared.c_str());
