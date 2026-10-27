@@ -5,7 +5,7 @@ import { brandPNG } from './brand.mjs';
 import { apps } from './catalog-data.mjs';
 import { catalogHTML, catalogCSS, catalogJS } from './catalog.mjs';
 import { sealCredential, openCredential } from './credentials.mjs';
-export const PUBLIC_KEY = 'HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA=';
+export const PUBLIC_KEY = 'yMFlyNPeTyazhCFLXQQa6CV/tf5Zgj8R5RjfQbpzJgQ=';
 const enc = new TextEncoder();
 const catalogIndex = apps.map(a=>(a.name+' '+a.bundle).toLowerCase());
 const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -30,7 +30,7 @@ const decode = text => Uint8Array.from(atob(text.replaceAll('-','+').replaceAll(
 export const digest = async text => base64url(await crypto.subtle.digest('SHA-256', enc.encode(text)));
 export function newCode() {
  // Rejection sampling avoids modulo bias for the 31-character alphabet.
- let result='idk';
+ let result='taif';
  while(result.length<12) for(const b of crypto.getRandomValues(new Uint8Array(16))) {
   if(b<256-256%alphabet.length) result+=alphabet[b%alphabet.length];
   if(result.length===12)break;
@@ -40,17 +40,17 @@ export function newCode() {
 export function normalizeCode(input) {
  if(typeof input!=='string')return null;
  const code=input.trim().toUpperCase();
- return /^IDK[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{9}$/.test(code) ? 'idk'+code.slice(3) : null;
+ return /^TAIF[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/.test(code) ? 'taif'+code.slice(4) : null;
 }
 export async function verifyToken(token, now=Math.floor(Date.now()/1000), publicKey=PUBLIC_KEY) {
  try {
   if(typeof token!=='string'||token.length>4096)return null;
   const [prefix,body,sig,...extra]=token.split('.');
-  if(prefix!=='IDK1'||extra.length||!body||!sig)return null;
+  if(prefix!=='TAIF1'||extra.length||!body||!sig)return null;
   const key=await crypto.subtle.importKey('raw',decode(publicKey),'Ed25519',false,['verify']);
   if(!await crypto.subtle.verify('Ed25519',key,decode(sig),enc.encode(body)))return null;
   const p=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(decode(body)));
-  if(p.app!=='app.idkplus.store'||!validSubject(p.subject)||typeof p.name!=='string'||!p.name.trim()||p.name.length>100||!Number.isSafeInteger(p.issued)||!Number.isSafeInteger(p.expires)||p.issued>now+300||p.expires<=now||p.expires<=p.issued||p.expires-p.issued>730*86400)return null;
+  if(p.app!=='app.taifplus.store'||!validSubject(p.subject)||typeof p.name!=='string'||!p.name.trim()||p.name.length>100||!Number.isSafeInteger(p.issued)||!Number.isSafeInteger(p.expires)||p.issued>now+300||p.expires<=now||p.expires<=p.issued||p.expires-p.issued>730*86400)return null;
   return p;
  }catch{return null;}
 }
@@ -70,7 +70,7 @@ async function json(request,maxBytes=8192) {
  try {return JSON.parse(new TextDecoder().decode(data));}catch{throw new HttpError(400,'Invalid JSON');}
 }
 class HttpError extends Error { constructor(status,message){super(message);this.status=status;} }
-export const adminMessage = (url,method,time,nonce,bodyHash) => ['IDK-ADMIN1',url.origin,method,url.pathname+url.search,time,nonce,bodyHash].join('\n');
+export const adminMessage = (url,method,time,nonce,bodyHash) => ['TAIF-ADMIN1',url.origin,method,url.pathname+url.search,time,nonce,bodyHash].join('\n');
 async function ownerAuthorized(request,env,publicKey,now) {
  const time=request.headers.get('x-idk-time')??'',nonce=request.headers.get('x-idk-nonce')??'',signature=request.headers.get('x-idk-signature')??'';
  if(!/^\d{10}$/.test(time)||Math.abs(now-Number(time))>120||! /^[0-9a-f-]{36}$/.test(nonce)||! /^[A-Za-z0-9_-]{86}$/.test(signature))return false;
@@ -88,7 +88,7 @@ async function ownerAuthorized(request,env,publicKey,now) {
  catch(e){if(String(e).includes('UNIQUE constraint failed'))return false;throw e;}
  return true;
 }
-function sessionCookie(request){const raw=request.headers.get('cookie')??'';const matches=raw.split(';').map(x=>x.trim()).filter(x=>x.startsWith('idk_admin='));if(matches.length!==1)return null;const value=matches[0].slice(10);return /^[A-Za-z0-9_-]{43}$/.test(value)?value:null;}
+function sessionCookie(request){const raw=request.headers.get('cookie')??'';const matches=raw.split(';').map(x=>x.trim()).filter(x=>x.startsWith('taif_admin='));if(matches.length!==1)return null;const value=matches[0].slice(11);return /^[A-Za-z0-9_-]{43}$/.test(value)?value:null;}
 async function currentAccount(request,env,now){
  const value=sessionCookie(request);if(!value)return null;const hash=await digest(value);
  let session;try{session=await env.DB.prepare('SELECT token_hash FROM admin_sessions WHERE token_hash=? AND expires>?').bind(hash,now).first();}catch(e){if(String(e).includes('no such table'))return null;throw e;}if(!session)return null;
@@ -114,7 +114,7 @@ async function startSession(env,now,accountID='owner'){
  await env.DB.batch([env.DB.prepare('INSERT INTO admin_sessions(token_hash,expires) VALUES(?,?)').bind(tokenHash,now+1800),env.DB.prepare('INSERT INTO admin_session_actors(token_hash,account_id) VALUES(?,?)').bind(tokenHash,accountID)]);
  const result=response({ok:true,expires:now+1800});result.headers.set('Set-Cookie',cookieHeader(session));return result;
 }
-const cookieHeader=(value,age=1800)=>'idk_admin='+value+'; Path=/api/admin/; HttpOnly; Secure; SameSite=Strict; Max-Age='+age;
+const cookieHeader=(value,age=1800)=>'taif_admin='+value+'; Path=/api/admin/; HttpOnly; Secure; SameSite=Strict; Max-Age='+age;
 async function limit(request,env,scope,max,now) {
  const key=await digest(scope+':'+(request.headers.get('cf-connecting-ip')??'local'));
  const row=await env.DB.prepare('INSERT INTO attempts(key,window,hits) VALUES(?,?,1) ON CONFLICT(key,window) DO UPDATE SET hits=hits+1 RETURNING hits').bind(key,Math.floor(now/60)).first();
@@ -122,8 +122,8 @@ async function limit(request,env,scope,max,now) {
 }
 async function handle(request,env,publicKey,passwordConfig) {
  const url=new URL(request.url),path=url.pathname;
- if(request.method==='GET'&&path==='/brand.png') {
-  return new Response(decode(brandPNG),{headers:{...securityHeaders,'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
+ if(request.method==='GET'&&path==='/brand.jpg') {
+  return new Response(decode(brandPNG),{headers:{...securityHeaders,'Content-Type':'image/jpeg','Cache-Control':'public, max-age=86400'}});
  }
  const pages = {'/':[siteHTML,'text/html'],'/admin':[html,'text/html'],'/admin/':[html,'text/html'],
                 '/apps':[catalogHTML,'text/html'],'/catalog.css':[catalogCSS,'text/css'],'/catalog.js':[catalogJS,'application/javascript'],
@@ -140,7 +140,7 @@ async function handle(request,env,publicKey,passwordConfig) {
   const matches=q?apps.filter((a,i)=>catalogIndex[i].includes(q)):apps;
   return response({items:matches.slice(offset,offset+30),total:matches.length,next:offset+30<matches.length?offset+30:null});
  }
- if(path==='/api/health'&&request.method==='GET')return response({service:'idk plus',version:1});
+ if(path==='/api/health'&&request.method==='GET')return response({service:'TAIF PLUS',version:1});
  if(!env.DB)return response({code:'DB_NOT_BOUND',error:'باقي خطوة إعداد واحدة: اربط قاعدة بيانات المشتركين بالموقع باسم DB. هذا مو خطأ بملف المالك.'},503);
  const now=Math.floor(Date.now()/1000);
  if(path==='/api/admin/login'&&request.method==='POST'){

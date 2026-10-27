@@ -26,12 +26,12 @@ struct NextAccessGate<Content: View>: View {
                 NavigationView {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-                            Image("IDKPlusIcon").resizable().scaledToFit()
+                            Image("TAIFPlusIcon").resizable().scaledToFit()
                                 .frame(width: 86, height: 86).clipShape(RoundedRectangle(cornerRadius: 23))
                                 .padding(.top, 38)
-                            Text("idk plus")
+                            Text("TAIF PLUS")
                                 .font(.system(size: 38, weight: .black, design: .rounded))
-                            Text("تطبيقاتك. توقيعك. بمكان واحد.")
+                            Text("كل جديد، بطابعك.")
                                 .font(.title3.bold())
                             Text("انسخ معرّفك وأرسله لصاحب المتجر حتى يعطيك كود اشتراك خاص بهذا التطبيق على جهازك.")
                                 .foregroundStyle(.secondary)
@@ -71,9 +71,10 @@ struct NextAccessGate<Content: View>: View {
                         .padding(26).frame(maxWidth: 600)
                     }
                     .frame(maxWidth: .infinity)
-                    .background(Color(.systemGroupedBackground))
+                    .background(TaifPalette.page)
                 }
                 .navigationViewStyle(StackNavigationViewStyle())
+                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { TaifAppearanceMenu() } }
                 .environment(\.layoutDirection, .rightToLeft)
             }
         }

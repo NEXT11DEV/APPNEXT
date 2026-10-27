@@ -1,7 +1,7 @@
-name: Check idk plus panel
+name: Check taif plus panel
 on:
   push:
-    branches: [idk-panel]
+    branches: [taif-panel]
   workflow_dispatch:
 jobs:
   test:

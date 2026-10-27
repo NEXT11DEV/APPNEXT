@@ -11,7 +11,7 @@ export function validateCredential(value){
 }
 async function keyFor(secret){
  if(typeof secret!=='string'||secret.length<24)throw Error('Missing encryption secret');
- const raw=await crypto.subtle.digest('SHA-256',encoder.encode('idk-plus.delivery.v1:'+secret));
+ const raw=await crypto.subtle.digest('SHA-256',encoder.encode('taif-plus.delivery.v1:'+secret));
  return crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt']);
 }
 export async function sealCredential(value,secret,context){

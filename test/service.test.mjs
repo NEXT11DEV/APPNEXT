@@ -9,8 +9,8 @@ const subject='AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE';
 const pair=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']);
 const publicKey=Buffer.from(await crypto.subtle.exportKey('raw',pair.publicKey)).toString('base64');
 async function token(overrides={}) {
- const body=base64url(new TextEncoder().encode(JSON.stringify({app:'app.idkplus.store',subject,name:'Test subscriber',issued:now,expires:now+86400,...overrides})));
- return 'IDK1.'+body+'.'+base64url(await crypto.subtle.sign('Ed25519',pair.privateKey,new TextEncoder().encode(body)));
+ const body=base64url(new TextEncoder().encode(JSON.stringify({app:'app.taifplus.store',subject,name:'Test subscriber',issued:now,expires:now+86400,...overrides})));
+ return 'TAIF1.'+body+'.'+base64url(await crypto.subtle.sign('Ed25519',pair.privateKey,new TextEncoder().encode(body)));
 }
 function fixture(){
  const db=new DatabaseSync(':memory:');
@@ -26,8 +26,8 @@ function fixture(){
  }
  return {db,request,env,worker};
 }
-test('12-character unbiased-format codes normalize without changing the idk prefix',()=>{
- const codes=new Set();for(let i=0;i<5000;i++){const c=newCode();assert.match(c,/^idk[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{9}$/);assert.equal(c.length,12);assert.equal(normalizeCode(c.toLowerCase()),c);codes.add(c);}assert.equal(codes.size,5000);assert.equal(normalizeCode('idk../etc'),null);
+test('12-character unbiased-format codes normalize without changing the taif prefix',()=>{
+ const codes=new Set();for(let i=0;i<5000;i++){const c=newCode();assert.match(c,/^taif[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);assert.equal(c.length,12);assert.equal(normalizeCode(c.toLowerCase()),c);codes.add(c);}assert.equal(codes.size,5000);assert.equal(normalizeCode('taif../etc'),null);
 });
 test('real Ed25519 verification rejects forged, expired, future and wrong-app payloads',async()=>{
  assert.ok(await verifyToken(await token(),now,publicKey));
@@ -53,7 +53,7 @@ test('authentication, cross-origin writes, payload bounds, forgery and guessing 
  assert.equal((await f.request('/api/admin/licenses','GET',undefined,false)).status,401);
  assert.equal((await f.request('/api/admin/licenses','POST',{token:await token()},true,{Origin:'https://evil.example'})).status,403);
  assert.equal((await f.request('/api/admin/licenses','POST',{token:'x'.repeat(9000)})).status,413);
- assert.equal((await f.request('/api/admin/licenses','POST',{token:'IDK1.forged.fake'})).status,400);
+ assert.equal((await f.request('/api/admin/licenses','POST',{token:'TAIF1.forged.fake'})).status,400);
  for(let i=0;i<15;i++)assert.equal((await f.request('/api/redeem','POST',{code:'invalid',subject},false)).status,403);
  assert.equal((await f.request('/api/redeem','POST',{code:'invalid',subject},false)).status,429);
  f.db.close();
@@ -67,9 +67,9 @@ test('list pagination does not drop records sharing an issuance second',async()=
 test('panel is dependency-free and uses safe text nodes for subscriber data',()=>{assert.doesNotThrow(()=>new Function(javascript));assert.ok(javascript.includes('textContent=value'));assert.ok(!javascript.includes('innerHTML'));assert.ok(!javascript.includes('localStorage'));});
 test('subscriber website, owner panel, brand and script routes remain distinct',async()=>{
  const f=fixture();
- const home=await f.request('/');assert.equal(home.status,200);const body=await home.text();assert.ok(body.includes('بطريقتك أنت.'));assert.ok(!body.includes('id="adminKey"'));assert.ok(body.includes('/admin'));assert.ok(body.includes('idk-plus-1.7.1-unsigned.ipa'));
+ const home=await f.request('/');assert.equal(home.status,200);const body=await home.text();assert.ok(body.includes('كل جديد، <em>بطابعك.'));assert.ok(!body.includes('id="adminKey"'));assert.ok(body.includes('/admin'));assert.ok(body.includes('taif-plus-1.0.0-unsigned.ipa'));
  const admin=await f.request('/admin');assert.equal(admin.status,200);assert.ok((await admin.text()).includes('id="adminKey"'));
- const icon=await f.request('/brand.png');assert.equal(icon.headers.get('content-type'),'image/png');assert.equal((await icon.arrayBuffer()).byteLength,753005);
+ const icon=await f.request('/brand.jpg');assert.equal(icon.headers.get('content-type'),'image/jpeg');assert.equal((await icon.arrayBuffer()).byteLength,485755);
  assert.equal((await f.request('/site.js')).headers.get('content-type'),'application/javascript; charset=utf-8');
  assert.equal((await f.request('/api/admin/licenses','GET',undefined,false)).status,401);
  assert.equal((await f.request('/constructor')).status,404);
@@ -97,7 +97,7 @@ test('catalog pages stay bounded to thirty, full-library search and no public do
  const f=fixture();const first=await (await f.request('/api/catalog')).json();assert.equal(first.items.length,30);assert.equal(first.total,20419);assert.equal(first.next,30);assert.equal(first.items[0].downloadURL,undefined);
  const next=await (await f.request('/api/catalog?offset=30')).json();assert.equal(next.items.length,30);assert.ok(!first.items.some(x=>x.id===next.items[0].id));
  const search=await (await f.request('/api/catalog?q=Alpenglow')).json();assert.ok(search.total>0);assert.ok(search.items.every(a=>a.name.toLowerCase().includes('alpenglow')));
- const home=await (await f.request('/')).text();for(const url of ['https://t.me/YG8_1','https://t.me/x_arw','https://t.me/xar_ipa'])assert.ok(home.includes(url));
+ const home=await (await f.request('/')).text();for(const url of ['https://t.me/YG8_1','https://t.me/tife_store1','https://t.me/tife_store'])assert.ok(home.includes(url));
  const page=await f.request('/apps');assert.equal(page.status,200);assert.ok((await page.text()).includes('catalogSearch'));
  f.db.close();
 });
