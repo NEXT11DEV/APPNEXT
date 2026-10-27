@@ -8,9 +8,13 @@ export const PUBLIC_KEY = 'HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA=';
 const enc = new TextEncoder();
 const catalogIndex = apps.map(a=>(a.name+' '+a.bundle).toLowerCase());
 const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const accountSchema = `CREATE TABLE IF NOT EXISTS admin_accounts (id TEXT PRIMARY KEY CHECK(id='owner'), username TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, iterations INTEGER NOT NULL)`;
+const sessionSchema = 'CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires INTEGER NOT NULL)';
 const nonceSchema = 'CREATE TABLE IF NOT EXISTS admin_nonces (nonce TEXT PRIMARY KEY, expires INTEGER NOT NULL)';
 export const schema = [
  nonceSchema,
+ sessionSchema,
+ accountSchema,
  `CREATE TABLE IF NOT EXISTS licenses (id TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, suffix TEXT NOT NULL, subject TEXT NOT NULL, name TEXT NOT NULL, token TEXT NOT NULL, issued INTEGER NOT NULL, expires INTEGER NOT NULL, disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)), first_used INTEGER, last_used INTEGER)`,
  `CREATE INDEX IF NOT EXISTS licenses_issued ON licenses(issued DESC, id)`,
  `CREATE TABLE IF NOT EXISTS credential_deliveries (license_id TEXT PRIMARY KEY REFERENCES licenses(id) ON DELETE CASCADE, iv TEXT NOT NULL, ciphertext TEXT NOT NULL, updated INTEGER NOT NULL)`,
@@ -79,22 +83,30 @@ async function ownerAuthorized(request,env,publicKey,now) {
  catch(e){if(String(e).includes('UNIQUE constraint failed'))return false;throw e;}
  return true;
 }
-async function authorized(request,env,publicKey,now) {
- if(request.headers.has('x-idk-signature'))return ownerAuthorized(request,env,publicKey,now);
- if(typeof env.ADMIN_KEY!=='string'||env.ADMIN_KEY.length<24)return false;
- const header=request.headers.get('authorization')??'';
- const provided=header.startsWith('Bearer ')?header.slice(7):'';
- if(provided.length>512)return false;
- const a=await digest(provided),b=await digest(env.ADMIN_KEY);let diff=0;
- for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);
- return diff===0;
+function sessionCookie(request){const raw=request.headers.get('cookie')??'';const matches=raw.split(';').map(x=>x.trim()).filter(x=>x.startsWith('idk_admin='));if(matches.length!==1)return null;const value=matches[0].slice(10);return /^[A-Za-z0-9_-]{43}$/.test(value)?value:null;}
+async function sessionAuthorized(request,env,now){const value=sessionCookie(request);if(!value)return false;try{return !!await env.DB.prepare('SELECT token_hash FROM admin_sessions WHERE token_hash=? AND expires>?').bind(await digest(value),now).first();}catch(e){if(String(e).includes('no such table'))return false;throw e;}}
+async function authorized(request,env,publicKey,now){return await sessionAuthorized(request,env,now)&&await ownerAuthorized(request,env,publicKey,now);}
+export async function verifyPassword(username,password,config){
+ if(typeof username!=='string'||username.length>80||typeof password!=='string'||password.length>256)return false;
+ const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
+ const derived=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:decode(config.salt),iterations:config.iterations},key,256));
+ const expected=decode(config.hash);let diff=derived.length^expected.length;for(let i=0;i<derived.length;i++)diff|=derived[i]^(expected[i]??0);
+ return diff===0&&username===config.username;
 }
+async function readAccount(env){try{return await env.DB.prepare('SELECT username,salt,hash,iterations FROM admin_accounts WHERE id=?').bind('owner').first();}catch(e){if(String(e).includes('no such table'))return null;throw e;}}
+async function startSession(env,now){
+ await env.DB.prepare(sessionSchema).run();await env.DB.prepare('DELETE FROM admin_sessions WHERE expires<=?').bind(now).run();
+ const session=base64url(crypto.getRandomValues(new Uint8Array(32)));
+ await env.DB.prepare('INSERT INTO admin_sessions(token_hash,expires) VALUES(?,?)').bind(await digest(session),now+1800).run();
+ const result=response({ok:true,expires:now+1800});result.headers.set('Set-Cookie',cookieHeader(session));return result;
+}
+const cookieHeader=(value,age=1800)=>'idk_admin='+value+'; Path=/api/admin/; HttpOnly; Secure; SameSite=Strict; Max-Age='+age;
 async function limit(request,env,scope,max,now) {
  const key=await digest(scope+':'+(request.headers.get('cf-connecting-ip')??'local'));
  const row=await env.DB.prepare('INSERT INTO attempts(key,window,hits) VALUES(?,?,1) ON CONFLICT(key,window) DO UPDATE SET hits=hits+1 RETURNING hits').bind(key,Math.floor(now/60)).first();
  if(row.hits>max)throw new HttpError(429,'محاولات كثيرة. انتظر دقيقة وأعد المحاولة.');
 }
-async function handle(request,env,publicKey) {
+async function handle(request,env,publicKey,passwordConfig) {
  const url=new URL(request.url),path=url.pathname;
  if(request.method==='GET'&&path==='/brand.png') {
   return new Response(decode(brandPNG),{headers:{...securityHeaders,'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
@@ -117,9 +129,38 @@ async function handle(request,env,publicKey) {
  if(path==='/api/health'&&request.method==='GET')return response({service:'idk plus',version:1});
  if(!env.DB)return response({code:'DB_NOT_BOUND',error:'باقي خطوة إعداد واحدة: اربط قاعدة بيانات المشتركين بالموقع باسم DB. هذا مو خطأ بملف المالك.'},503);
  const now=Math.floor(Date.now()/1000);
+ if(path==='/api/admin/login'&&request.method==='POST'){
+  const origin=request.headers.get('origin');if(origin&&origin!==url.origin)throw new HttpError(403,'Origin not allowed');
+  await env.DB.prepare(schema.find(sql=>sql.includes('CREATE TABLE IF NOT EXISTS attempts'))).run();
+  await limit(request,env,'password-login',8,now);
+  const {username,password}=await json(request,2048);
+  const account=passwordConfig??await readAccount(env);
+  if(!account)return response({code:'ACCOUNT_NOT_SETUP',error:'حساب المالك يحتاج تهيئة مرة واحدة. اختر ملف المالك لحفظ بيانات الدخول بقاعدة الموقع الخاصة.'},409);
+  if(!await verifyPassword(username,password,account))throw new HttpError(401,'اسم المستخدم أو كلمة المرور غير صحيحة.');
+  return startSession(env,now);
+ }
+ if(path==='/api/admin/account/setup'&&request.method==='POST'){
+  const origin=request.headers.get('origin');if(origin&&origin!==url.origin)throw new HttpError(403,'Origin not allowed');
+  if(!await ownerAuthorized(request,env,publicKey,now))throw new HttpError(401,'ملف المالك غير صحيح. لا يمكن إنشاء الحساب بدون إثبات الملكية.');
+  if(passwordConfig||await readAccount(env))throw new HttpError(409,'حساب المالك موجود بالفعل؛ استخدم اسم المستخدم وكلمة المرور للدخول.');
+  const {username,password}=await json(request,2048);
+  if(typeof username!=='string'||!/^[A-Za-z0-9_.-]{3,80}$/.test(username)||typeof password!=='string'||password.length<8||password.length>256)throw new HttpError(400,'اسم المستخدم من 3 إلى 80 حرفًا إنجليزيًا أو رقمًا، وكلمة المرور 8 خانات على الأقل.');
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iterations=100000;
+  const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
+  const hash=base64url(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations},key,256));
+  await env.DB.prepare(accountSchema).run();
+  const added=await env.DB.prepare('INSERT INTO admin_accounts(id,username,salt,hash,iterations) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING RETURNING id').bind('owner',username,base64url(salt),hash,iterations).first();
+  if(!added)throw new HttpError(409,'حساب المالك موجود بالفعل.');
+  return startSession(env,now);
+ }
+ if(path==='/api/admin/logout'&&request.method==='POST'){
+  const origin=request.headers.get('origin');if(origin&&origin!==url.origin)throw new HttpError(403,'Origin not allowed');
+  const session=sessionCookie(request);if(session&&await sessionAuthorized(request,env,now))await env.DB.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await digest(session)).run();
+  const result=response({ok:true});result.headers.set('Set-Cookie',cookieHeader('',0));return result;
+ }
  if(path.startsWith('/api/admin/')) {
-  // Authenticate owner-signed requests or the existing admin secret before setup.
-  if(!await authorized(request,env,publicKey,now))throw new HttpError(401,'تعذر التحقق من الدخول. اختر ملف المالك الصحيح، أو تحقق من مفتاح الإدارة وضبط وقت جهازك.');
+  // Require both the password session and the owner PEM proof on every protected request.
+  if(!await authorized(request,env,publicKey,now))throw new HttpError(401,'انتهت جلسة الدخول أو تعذر التحقق من ملف المالك. ادخل باسمك وكلمة المرور ثم اختر ملف PEM الصحيح.');
   const origin=request.headers.get('origin');
   if(origin&&origin!==url.origin)throw new HttpError(403,'Origin not allowed');
   if(path==='/api/admin/setup'&&request.method==='POST') {
@@ -183,8 +224,8 @@ async function handle(request,env,publicKey) {
  }
  return response({error:'Not found'},404);
 }
-export function createWorker(publicKey=PUBLIC_KEY) { return {
- async fetch(request,env){try{return await handle(request,env,publicKey);}catch(e){return response({error:e instanceof HttpError?e.message:'الخدمة غير جاهزة. افتح اللوحة ونفّذ تهيئة قاعدة البيانات.'},e instanceof HttpError?e.status:503);}},
- async scheduled(_event,env){if(env.DB){await env.DB.prepare('DELETE FROM attempts WHERE window < ?').bind(Math.floor(Date.now()/60000)-60).run();await env.DB.prepare(nonceSchema).run();await env.DB.prepare('DELETE FROM admin_nonces WHERE expires < ?').bind(Math.floor(Date.now()/1000)).run();}}
+export function createWorker(publicKey=PUBLIC_KEY,passwordConfig) { return {
+ async fetch(request,env){try{return await handle(request,env,publicKey,passwordConfig);}catch(e){return response({error:e instanceof HttpError?e.message:'الخدمة غير جاهزة. افتح اللوحة ونفّذ تهيئة قاعدة البيانات.'},e instanceof HttpError?e.status:503);}},
+ async scheduled(_event,env){if(env.DB){await env.DB.prepare('DELETE FROM attempts WHERE window < ?').bind(Math.floor(Date.now()/60000)-60).run();await env.DB.prepare(nonceSchema).run();await env.DB.prepare('DELETE FROM admin_nonces WHERE expires < ?').bind(Math.floor(Date.now()/1000)).run();await env.DB.prepare(sessionSchema).run();await env.DB.prepare('DELETE FROM admin_sessions WHERE expires<=?').bind(Math.floor(Date.now()/1000)).run();}}
 }; }
 export default createWorker();

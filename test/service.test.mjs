@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { createWorker,newCode,normalizeCode,verifyToken,base64url } from '../src/worker.mjs';
+import { createWorker,newCode,normalizeCode,verifyToken,base64url,adminMessage,digest } from '../src/worker.mjs';
+import {testPassword,testPasswordConfig} from './auth-fixture.mjs';
 import { javascript } from '../src/panel.mjs';
 const now=Math.floor(Date.now()/1000);
 const subject='AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE';
@@ -15,9 +16,13 @@ function fixture(){
  const db=new DatabaseSync(':memory:');
  const DB={prepare(sql){return {bind(...args){return {async first(){return db.prepare(sql).get(...args)??null;},async all(){return {results:db.prepare(sql).all(...args)};},async run(){return db.prepare(sql).run(...args);}};},async run(){return db.prepare(sql).run();}};},async batch(statements){db.exec('BEGIN');try{for(const s of statements)await s.run();db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}}};
  const env={DB,ADMIN_KEY:'test-only-admin-'+ 'X'.repeat(32)};
- const worker=createWorker(publicKey);
+ const worker=createWorker(publicKey,testPasswordConfig);let cookie;
  async function request(path,method='GET',data,auth=true,extra={}){
-  return worker.fetch(new Request('https://idk.example'+path,{method,headers:{...(auth?{Authorization:'Bearer '+env.ADMIN_KEY}:{}),...(data?{'Content-Type':'application/json'}:{}),'CF-Connecting-IP':'192.0.2.1',...extra},body:data?JSON.stringify(data):undefined}),env);
+  if(auth&&!cookie){const login=await worker.fetch(new Request('https://idk.example/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:testPasswordConfig.username,password:testPassword})}),env);assert.equal(login.status,200);cookie=login.headers.get('set-cookie').split(';')[0];}
+  const url=new URL('https://idk.example'+path),body=data?JSON.stringify(data):undefined;
+  const headers={...(auth?{Cookie:cookie}:{}),...(data?{'Content-Type':'application/json'}:{}),'CF-Connecting-IP':'192.0.2.1',...extra};
+  if(auth){const time=String(Math.floor(Date.now()/1000)),nonce=crypto.randomUUID();headers['X-IDK-Time']=time;headers['X-IDK-Nonce']=nonce;headers['X-IDK-Signature']=base64url(await crypto.subtle.sign('Ed25519',pair.privateKey,new TextEncoder().encode(adminMessage(url,method,time,nonce,await digest(body??'')))));}
+  return worker.fetch(new Request(url,{method,headers,body}),env);
  }
  return {db,request,env,worker};
 }
