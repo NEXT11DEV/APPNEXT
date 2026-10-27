@@ -30,7 +30,7 @@ test('actual browser PEM flow requires password session and authenticates withou
  const code=javascript.replace('HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA=',publicKey);
  const browser=new Function('document','fetch','location','crypto',code+';return {api,importOwnerKey};')(doc,browserFetch,{origin:'https://idk.example'},crypto);
  const pem='-----BEGIN PRIVATE KEY-----\n'+Buffer.from(await crypto.subtle.exportKey('pkcs8',pair.privateKey)).toString('base64')+'\n-----END PRIVATE KEY-----';await browser.api('login','POST',{username:testPasswordConfig.username,password:testPassword});await browser.importOwnerKey({size:pem.length,text:async()=>pem});
- assert.deepEqual(await browser.api('setup','POST',{}),{ok:true});const issued=await browser.api('licenses','POST',{token:await token()});assert.equal(issued.code.length,12);assert.equal((await browser.api('licenses?offset=0')).items.length,1);
+ assert.equal((await browser.api('setup','POST',{})).account.role,'owner');const issued=await browser.api('licenses','POST',{token:await token()});assert.equal(issued.code.length,12);assert.equal((await browser.api('licenses?offset=0')).items.length,1);
  f.env.CERTIFICATE_KEY='test-only-encryption-key-'+ 'Z'.repeat(32);
  const credential={p12:Buffer.concat([Buffer.from([0x30]),Buffer.alloc(100000,7)]).toString('base64'),profile:Buffer.from('<?xml version="1.0"?><plist/>').toString('base64'),password:'private-test'};
  assert.deepEqual(await browser.api('licenses/'+issued.id+'/certificate','POST',credential),{ok:true});

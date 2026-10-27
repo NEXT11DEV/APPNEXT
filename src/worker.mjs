@@ -11,7 +11,11 @@ const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const accountSchema = `CREATE TABLE IF NOT EXISTS admin_accounts (id TEXT PRIMARY KEY CHECK(id='owner'), username TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, iterations INTEGER NOT NULL)`;
 const sessionSchema = 'CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires INTEGER NOT NULL)';
 const nonceSchema = 'CREATE TABLE IF NOT EXISTS admin_nonces (nonce TEXT PRIMARY KEY, expires INTEGER NOT NULL)';
-export const schema = [
+const delegateSchema = 'CREATE TABLE IF NOT EXISTS delegate_accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, iterations INTEGER NOT NULL, disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)), issued INTEGER NOT NULL)';
+const actorSchema = 'CREATE TABLE IF NOT EXISTS admin_session_actors (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL)';
+const issuerSchema = 'CREATE TABLE IF NOT EXISTS license_issuers (license_id TEXT PRIMARY KEY, account_id TEXT NOT NULL)';
+const blockSchema = 'CREATE TABLE IF NOT EXISTS license_owner_blocks (license_id TEXT PRIMARY KEY)';
+export const schema = [delegateSchema,actorSchema,issuerSchema,blockSchema,
  nonceSchema,
  sessionSchema,
  accountSchema,
@@ -84,8 +88,16 @@ async function ownerAuthorized(request,env,publicKey,now) {
  return true;
 }
 function sessionCookie(request){const raw=request.headers.get('cookie')??'';const matches=raw.split(';').map(x=>x.trim()).filter(x=>x.startsWith('idk_admin='));if(matches.length!==1)return null;const value=matches[0].slice(10);return /^[A-Za-z0-9_-]{43}$/.test(value)?value:null;}
-async function sessionAuthorized(request,env,now){const value=sessionCookie(request);if(!value)return false;try{return !!await env.DB.prepare('SELECT token_hash FROM admin_sessions WHERE token_hash=? AND expires>?').bind(await digest(value),now).first();}catch(e){if(String(e).includes('no such table'))return false;throw e;}}
-async function authorized(request,env,publicKey,now){return await sessionAuthorized(request,env,now)&&await ownerAuthorized(request,env,publicKey,now);}
+async function currentAccount(request,env,now){
+ const value=sessionCookie(request);if(!value)return null;const hash=await digest(value);
+ let session;try{session=await env.DB.prepare('SELECT token_hash FROM admin_sessions WHERE token_hash=? AND expires>?').bind(hash,now).first();}catch(e){if(String(e).includes('no such table'))return null;throw e;}if(!session)return null;
+ let actor;try{actor=await env.DB.prepare('SELECT account_id FROM admin_session_actors WHERE token_hash=?').bind(hash).first();}catch(e){if(!String(e).includes('no such table'))throw e;}
+ // Sessions issued before role support belong to the existing sole owner.
+ const id=actor?.account_id??'owner';if(id==='owner')return {id,role:'owner'};
+ const delegate=await env.DB.prepare('SELECT id,username,name FROM delegate_accounts WHERE id=? AND disabled=0').bind(id).first();return delegate?{...delegate,role:'delegate'}:null;
+}
+async function sessionAuthorized(request,env,now){return !!await currentAccount(request,env,now);}
+async function authorized(request,env,publicKey,now){const account=await currentAccount(request,env,now);return account&&await ownerAuthorized(request,env,publicKey,now)?account:null;}
 export async function verifyPassword(username,password,config){
  if(typeof username!=='string'||username.length>80||typeof password!=='string'||password.length>256)return false;
  const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
@@ -94,10 +106,11 @@ export async function verifyPassword(username,password,config){
  return diff===0&&username===config.username;
 }
 async function readAccount(env){try{return await env.DB.prepare('SELECT username,salt,hash,iterations FROM admin_accounts WHERE id=?').bind('owner').first();}catch(e){if(String(e).includes('no such table'))return null;throw e;}}
-async function startSession(env,now){
+async function startSession(env,now,accountID='owner'){
  await env.DB.prepare(sessionSchema).run();await env.DB.prepare('DELETE FROM admin_sessions WHERE expires<=?').bind(now).run();
  const session=base64url(crypto.getRandomValues(new Uint8Array(32)));
- await env.DB.prepare('INSERT INTO admin_sessions(token_hash,expires) VALUES(?,?)').bind(await digest(session),now+1800).run();
+ await env.DB.prepare(actorSchema).run();const tokenHash=await digest(session);
+ await env.DB.batch([env.DB.prepare('INSERT INTO admin_sessions(token_hash,expires) VALUES(?,?)').bind(tokenHash,now+1800),env.DB.prepare('INSERT INTO admin_session_actors(token_hash,account_id) VALUES(?,?)').bind(tokenHash,accountID)]);
  const result=response({ok:true,expires:now+1800});result.headers.set('Set-Cookie',cookieHeader(session));return result;
 }
 const cookieHeader=(value,age=1800)=>'idk_admin='+value+'; Path=/api/admin/; HttpOnly; Secure; SameSite=Strict; Max-Age='+age;
@@ -134,10 +147,14 @@ async function handle(request,env,publicKey,passwordConfig) {
   await env.DB.prepare(schema.find(sql=>sql.includes('CREATE TABLE IF NOT EXISTS attempts'))).run();
   await limit(request,env,'password-login',8,now);
   const {username,password}=await json(request,2048);
-  const account=passwordConfig??await readAccount(env);
-  if(!account)return response({code:'ACCOUNT_NOT_SETUP',error:'حساب المالك يحتاج تهيئة مرة واحدة. اختر ملف المالك لحفظ بيانات الدخول بقاعدة الموقع الخاصة.'},409);
-  if(!await verifyPassword(username,password,account))throw new HttpError(401,'اسم المستخدم أو كلمة المرور غير صحيحة.');
-  return startSession(env,now);
+  const owner=passwordConfig??await readAccount(env);
+  if(!owner)return response({code:'ACCOUNT_NOT_SETUP',error:'حساب المالك يحتاج تهيئة مرة واحدة. اختر ملف المالك لحفظ بيانات الدخول بقاعدة الموقع الخاصة.'},409);
+  await env.DB.prepare(delegateSchema).run();
+  const delegate=typeof username==='string'&&username!==owner.username?await env.DB.prepare('SELECT id,username,salt,hash,iterations,disabled FROM delegate_accounts WHERE username=?').bind(username).first():null;
+  const account=username===owner.username?owner:delegate;
+  const correct=await verifyPassword(username,password,account??owner);
+  if(!correct||!account||delegate?.disabled)throw new HttpError(401,'اسم المستخدم أو كلمة المرور غير صحيحة.');
+  return startSession(env,now,delegate?.id??'owner');
  }
  if(path==='/api/admin/account/setup'&&request.method==='POST'){
   const origin=request.headers.get('origin');if(origin&&origin!==url.origin)throw new HttpError(403,'Origin not allowed');
@@ -160,17 +177,47 @@ async function handle(request,env,publicKey,passwordConfig) {
  }
  if(path.startsWith('/api/admin/')) {
   // Require both the password session and the owner PEM proof on every protected request.
-  if(!await authorized(request,env,publicKey,now))throw new HttpError(401,'انتهت جلسة الدخول أو تعذر التحقق من ملف المالك. ادخل باسمك وكلمة المرور ثم اختر ملف PEM الصحيح.');
+  const actor=await authorized(request,env,publicKey,now);
+  if(!actor)throw new HttpError(401,'انتهت جلسة الدخول أو تعذر التحقق من ملف المالك. ادخل باسمك وكلمة المرور ثم اختر ملف PEM الصحيح.');
   const origin=request.headers.get('origin');
   if(origin&&origin!==url.origin)throw new HttpError(403,'Origin not allowed');
   if(path==='/api/admin/setup'&&request.method==='POST') {
-   await env.DB.batch(schema.map(sql=>env.DB.prepare(sql)));return response({ok:true});
+   await env.DB.batch(schema.map(sql=>env.DB.prepare(sql)));return response({ok:true,account:actor});
   }
   await limit(request,env,'admin',120,now);
+  if(path.startsWith('/api/admin/delegates')){
+   if(actor.role!=='owner')throw new HttpError(403,'إدارة المفوضين للمالك فقط.');
+   if(path==='/api/admin/delegates'&&request.method==='GET'){
+    const offset=Number(url.searchParams.get('offset')??0);if(!Number.isSafeInteger(offset)||offset<0||offset>1000000)throw new HttpError(400,'Invalid offset');
+    const page=await env.DB.prepare('SELECT a.id,a.username,a.name,a.disabled,a.issued,(SELECT COUNT(*) FROM license_issuers i WHERE i.account_id=a.id) AS codes FROM delegate_accounts a ORDER BY a.issued DESC,a.id LIMIT 101 OFFSET ?').bind(offset).all();return response({items:page.results.slice(0,100),next:page.results.length>100?offset+100:null});
+   }
+   if(path==='/api/admin/delegates'&&request.method==='POST'){
+    const {username,password,name}=await json(request,2048);
+    if(typeof username!=='string'||!/^[A-Za-z0-9_.-]{3,80}$/.test(username)||typeof password!=='string'||password.length<8||password.length>256||typeof name!=='string'||!name.trim()||name.length>100)throw new HttpError(400,'تحقق من الاسم واسم المستخدم وكلمة المرور (8 خانات على الأقل).');
+    const owner=passwordConfig??await readAccount(env);if(username===owner?.username)throw new HttpError(409,'اسم المستخدم محجوز للمالك.');
+    const salt=crypto.getRandomValues(new Uint8Array(16)),iterations=100000,key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
+    const hash=base64url(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations},key,256)),id=crypto.randomUUID();
+    try{await env.DB.prepare('INSERT INTO delegate_accounts(id,username,name,salt,hash,iterations,issued) VALUES(?,?,?,?,?,?,?)').bind(id,username,name.trim(),base64url(salt),hash,iterations,now).run();}catch(e){if(String(e).includes('UNIQUE constraint failed'))throw new HttpError(409,'اسم المستخدم مستخدم بالفعل.');throw e;}
+    return response({id,username,name:name.trim(),disabled:0,codes:0},201);
+   }
+   const delegatePath=path.match(/^\/api\/admin\/delegates\/([0-9a-f-]{36})(\/codes)?$/);
+   if(delegatePath&&request.method==='PATCH'){
+    const id=delegatePath[1],body=await json(request);const target=await env.DB.prepare('SELECT id FROM delegate_accounts WHERE id=?').bind(id).first();if(!target)throw new HttpError(404,'المفوض غير موجود.');
+    const codesOnly=!!delegatePath[2];if(typeof body.disabled!=='boolean'||(codesOnly&&body.disabled!==true)||(body.disable_codes!==undefined&&typeof body.disable_codes!=='boolean'))throw new HttpError(400,'Invalid state');
+    const actions=[];
+    if(!codesOnly){actions.push(env.DB.prepare('UPDATE delegate_accounts SET disabled=? WHERE id=?').bind(body.disabled?1:0,id));if(body.disabled)actions.push(env.DB.prepare('DELETE FROM admin_sessions WHERE token_hash IN (SELECT token_hash FROM admin_session_actors WHERE account_id=?)').bind(id));}
+    if(codesOnly||body.disable_codes===true){actions.push(env.DB.prepare('UPDATE licenses SET disabled=1 WHERE id IN (SELECT license_id FROM license_issuers WHERE account_id=?)').bind(id));actions.push(env.DB.prepare('INSERT INTO license_owner_blocks(license_id) SELECT license_id FROM license_issuers WHERE account_id=? ON CONFLICT(license_id) DO NOTHING').bind(id));}
+    await env.DB.batch(actions);return response({ok:true});
+   }
+  }
   if(path==='/api/admin/licenses'&&request.method==='GET') {
    const offset=Number(url.searchParams.get('offset')??0);
    if(!Number.isSafeInteger(offset)||offset<0||offset>1000000)throw new HttpError(400,'Invalid offset');
-   const page=await env.DB.prepare('SELECT id,suffix,subject,name,issued,expires,disabled,first_used,last_used,EXISTS(SELECT 1 FROM credential_deliveries d WHERE d.license_id=licenses.id) AS has_certificate FROM licenses ORDER BY issued DESC,id LIMIT 101 OFFSET ?').bind(offset).all();
+   const filter=url.searchParams.get('issuer')??'all';
+   if(actor.role!=='owner'&&filter!=='all'&&filter!==actor.id)throw new HttpError(403,'تگدر تشوف أكوادك فقط.');
+   if(filter!=='all'&&filter!=='owner'&&!/^[0-9a-f-]{36}$/.test(filter))throw new HttpError(400,'Invalid issuer');
+   const issuer=actor.role==='owner'?filter:actor.id;
+   const page=await env.DB.prepare("SELECT l.id,l.suffix,l.subject,l.name,l.issued,l.expires,l.disabled,l.first_used,l.last_used,COALESCE(i.account_id,'owner') AS issuer_id,COALESCE(a.name,'المالك') AS issuer_name,EXISTS(SELECT 1 FROM license_owner_blocks b WHERE b.license_id=l.id) AS owner_blocked,EXISTS(SELECT 1 FROM credential_deliveries d WHERE d.license_id=l.id) AS has_certificate FROM licenses l LEFT JOIN license_issuers i ON i.license_id=l.id LEFT JOIN delegate_accounts a ON a.id=i.account_id WHERE (?='all' OR COALESCE(i.account_id,'owner')=?) ORDER BY l.issued DESC,l.id LIMIT 101 OFFSET ?").bind(issuer,issuer,offset).all();
    return response({items:page.results.slice(0,100),next:page.results.length>100?offset+100:null});
   }
   if(path==='/api/admin/licenses'&&request.method==='POST') {
@@ -179,7 +226,7 @@ async function handle(request,env,publicKey,passwordConfig) {
    for(let attempt=0;attempt<4;attempt++) {
     const code=newCode(),hash=await digest(code),id=crypto.randomUUID();
     try {
-     await env.DB.prepare('INSERT INTO licenses(id,code_hash,suffix,subject,name,token,issued,expires) VALUES(?,?,?,?,?,?,?,?)').bind(id,hash,code.slice(-4),p.subject,p.name,token,now,p.expires).run();
+     await env.DB.batch([env.DB.prepare('INSERT INTO licenses(id,code_hash,suffix,subject,name,token,issued,expires) VALUES(?,?,?,?,?,?,?,?)').bind(id,hash,code.slice(-4),p.subject,p.name,token,now,p.expires),env.DB.prepare('INSERT INTO license_issuers(license_id,account_id) VALUES(?,?)').bind(id,actor.id)]);
      return response({code,id,subject:p.subject,name:p.name,expires:p.expires},201);
     }catch(e){if(!String(e).includes('UNIQUE constraint failed'))throw e;}
    }
@@ -187,7 +234,7 @@ async function handle(request,env,publicKey,passwordConfig) {
   }
   const deliveryMatch=path.match(/^\/api\/admin\/licenses\/([0-9a-f-]{36})\/certificate$/);
   if(deliveryMatch&&request.method==='POST') {
-   const license=await env.DB.prepare('SELECT id,subject,expires FROM licenses WHERE id=?').bind(deliveryMatch[1]).first();
+   const license=await env.DB.prepare("SELECT l.id,l.subject,l.expires FROM licenses l LEFT JOIN license_issuers i ON i.license_id=l.id WHERE l.id=? AND (?='owner' OR COALESCE(i.account_id,'owner')=?)").bind(deliveryMatch[1],actor.role,actor.id).first();
    if(!license||license.expires<=now)throw new HttpError(404,'الاشتراك غير موجود أو منتهي.');
    const encryptionSecret=env.CERTIFICATE_KEY??env.ADMIN_KEY;
    if(typeof encryptionSecret!=='string'||encryptionSecret.length<24)throw new HttpError(503,'إضافة الشهادات تحتاج إعداد مفتاح تشفير مرة واحدة: أضف Secret باسم CERTIFICATE_KEY في Cloudflare، بقيمة عشوائية لا تقل عن 24 خانة. إصدار الأكواد يعمل بدونه.');
@@ -199,8 +246,13 @@ async function handle(request,env,publicKey,passwordConfig) {
   const match=path.match(/^\/api\/admin\/licenses\/([0-9a-f-]{36})$/);
   if(match&&request.method==='PATCH') {
    const {disabled}=await json(request);if(typeof disabled!=='boolean')throw new HttpError(400,'Invalid state');
-   const result=await env.DB.prepare('UPDATE licenses SET disabled=? WHERE id=? RETURNING id').bind(disabled?1:0,match[1]).first();
-   if(!result)throw new HttpError(404,'الكود غير موجود.');return response({ok:true});
+   const license=await env.DB.prepare("SELECT l.id,EXISTS(SELECT 1 FROM license_owner_blocks b WHERE b.license_id=l.id) AS owner_blocked FROM licenses l LEFT JOIN license_issuers i ON i.license_id=l.id WHERE l.id=? AND (?='owner' OR COALESCE(i.account_id,'owner')=?)").bind(match[1],actor.role,actor.id).first();
+   if(!license)throw new HttpError(404,'الكود غير موجود.');
+   if(actor.role!=='owner'&&!disabled&&license.owner_blocked)throw new HttpError(403,'المالك أوقف هذا الكود؛ ما تگدر تعيد تفعيله.');
+   if(actor.role!=='owner'){const changed=await env.DB.prepare('UPDATE licenses SET disabled=? WHERE id=? AND (?=1 OR NOT EXISTS(SELECT 1 FROM license_owner_blocks WHERE license_id=?)) RETURNING id').bind(disabled?1:0,match[1],disabled?1:0,match[1]).first();if(!changed)throw new HttpError(403,'المالك أوقف هذا الكود.');return response({ok:true});}
+   const actions=[env.DB.prepare('UPDATE licenses SET disabled=? WHERE id=?').bind(disabled?1:0,match[1])];
+   if(actor.role==='owner')actions.push(disabled?env.DB.prepare('INSERT INTO license_owner_blocks(license_id) VALUES(?) ON CONFLICT(license_id) DO NOTHING').bind(match[1]):env.DB.prepare('DELETE FROM license_owner_blocks WHERE license_id=?').bind(match[1]));
+   await env.DB.batch(actions);return response({ok:true});
   }
  }
  if(path==='/api/redeem'&&request.method==='POST') {
