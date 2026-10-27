@@ -1,4 +1,5 @@
 import { html, css, javascript } from './panel.mjs';
+import { ed25519JS } from './ed25519-asset.mjs';
 import { siteHTML, siteCSS, siteJS } from './site.mjs';
 import { brandPNG } from './brand.mjs';
 import { apps } from './catalog-data.mjs';
@@ -127,7 +128,7 @@ async function handle(request,env,publicKey,passwordConfig) {
  const pages = {'/':[siteHTML,'text/html'],'/admin':[html,'text/html'],'/admin/':[html,'text/html'],
                 '/apps':[catalogHTML,'text/html'],'/catalog.css':[catalogCSS,'text/css'],'/catalog.js':[catalogJS,'application/javascript'],
                 '/site.css':[siteCSS,'text/css'],'/site.js':[siteJS,'application/javascript'],
-                '/panel.css':[css,'text/css'],'/panel.js':[javascript,'application/javascript']};
+                '/panel.css':[css,'text/css'],'/panel.js':[javascript,'application/javascript'],'/ed25519.js':[ed25519JS,'application/javascript']};
  if(request.method==='GET'&&Object.hasOwn(pages,path)) {
   const [data,type]=pages[path];
   return new Response(data,{headers:{...securityHeaders,'Content-Type':type+'; charset=utf-8'}});
