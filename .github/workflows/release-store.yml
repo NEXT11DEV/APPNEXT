@@ -1,0 +1,42 @@
+name: Publish TAIF PLUS download
+on:
+  push:
+    branches: [taif-panel]
+    paths: ['.github/workflows/release-store.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: taif-plus-unsigned-IPA
+          github-token: ${{ github.token }}
+          run-id: 40592675094
+          path: release
+      - name: Verify and name the public download
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile,plistlib
+          p=Path('release/taif-plus-unsigned.ipa')
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='e4cce054fb4f9a9f3f789c91e3724ad8c46e2b52f6132562a6d0c0cf54129765'
+          with zipfile.ZipFile(p) as z:
+              info=plistlib.loads(z.read('Payload/TAIFPlus.app/Info.plist'))
+              assert info['CFBundleIdentifier']=='app.taifplus.store' and info['CFBundleShortVersionString']=='1.0.0'
+              assert not any(n.lower().endswith(('.pem','.p12','.mobileprovision')) for n in z.namelist())
+          p.rename('release/taif-plus-1.0.0-unsigned.ipa')
+          PY
+      - name: Publish verified unsigned IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view taif-v1.0.0 >/dev/null 2>&1; then
+            gh release view taif-v1.0.0 --json assets --jq '.assets[].name' | rg '^taif-plus-1.0.0-unsigned.ipa$'
+          else
+            gh release create taif-v1.0.0 release/taif-plus-1.0.0-unsigned.ipa --target daa11585579243a85b6001de7f8308bcf454251a --title 'TAIF PLUS 1.0.0' --notes 'Unsigned IPA for iOS 15 and later. Sign with your own valid P12 and provisioning profile. Supports device-bound short activation codes. No signing certificate or owner private key is included.'
+          fi
