@@ -8,7 +8,9 @@ export const PUBLIC_KEY = 'HfxDxlZl9XEqrN86xR2A4kGyoop8k36ItekNw9WEhpA=';
 const enc = new TextEncoder();
 const catalogIndex = apps.map(a=>(a.name+' '+a.bundle).toLowerCase());
 const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const nonceSchema = 'CREATE TABLE IF NOT EXISTS admin_nonces (nonce TEXT PRIMARY KEY, expires INTEGER NOT NULL)';
 export const schema = [
+ nonceSchema,
  `CREATE TABLE IF NOT EXISTS licenses (id TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, suffix TEXT NOT NULL, subject TEXT NOT NULL, name TEXT NOT NULL, token TEXT NOT NULL, issued INTEGER NOT NULL, expires INTEGER NOT NULL, disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)), first_used INTEGER, last_used INTEGER)`,
  `CREATE INDEX IF NOT EXISTS licenses_issued ON licenses(issued DESC, id)`,
  `CREATE TABLE IF NOT EXISTS credential_deliveries (license_id TEXT PRIMARY KEY REFERENCES licenses(id) ON DELETE CASCADE, iv TEXT NOT NULL, ciphertext TEXT NOT NULL, updated INTEGER NOT NULL)`,
@@ -59,7 +61,26 @@ async function json(request,maxBytes=8192) {
  try {return JSON.parse(new TextDecoder().decode(data));}catch{throw new HttpError(400,'Invalid JSON');}
 }
 class HttpError extends Error { constructor(status,message){super(message);this.status=status;} }
-async function authorized(request,env) {
+export const adminMessage = (url,method,time,nonce,bodyHash) => ['IDK-ADMIN1',url.origin,method,url.pathname+url.search,time,nonce,bodyHash].join('\n');
+async function ownerAuthorized(request,env,publicKey,now) {
+ const time=request.headers.get('x-idk-time')??'',nonce=request.headers.get('x-idk-nonce')??'',signature=request.headers.get('x-idk-signature')??'';
+ if(!/^\d{10}$/.test(time)||Math.abs(now-Number(time))>120||! /^[0-9a-f-]{36}$/.test(nonce)||! /^[A-Za-z0-9_-]{86}$/.test(signature))return false;
+ // Bound body reads also protect certificate-upload authentication from unbounded input.
+ const copy=request.clone(),reader=copy.body?.getReader();let length=0,chunks=[];
+ if(reader)for(;;){const {value,done}=await reader.read();if(done)break;length+=value.byteLength;if(length>550000){reader.cancel().catch(()=>{});throw new HttpError(413,'Body too large');}chunks.push(value);}
+ const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
+ const bodyHash=base64url(await crypto.subtle.digest('SHA-256',bytes));
+ let valid=false;
+ try {const key=await crypto.subtle.importKey('raw',decode(publicKey),'Ed25519',false,['verify']);valid=await crypto.subtle.verify('Ed25519',key,decode(signature),enc.encode(adminMessage(new URL(request.url),request.method,time,nonce,bodyHash)));}catch{return false;}
+ if(!valid)return false;
+ // Only a proven owner may initialize replay protection. Replays fail atomically.
+ await env.DB.prepare(nonceSchema).run();
+ try {await env.DB.prepare('INSERT INTO admin_nonces(nonce,expires) VALUES(?,?)').bind(nonce,now+300).run();}
+ catch(e){if(String(e).includes('UNIQUE constraint failed'))return false;throw e;}
+ return true;
+}
+async function authorized(request,env,publicKey,now) {
+ if(request.headers.has('x-idk-signature'))return ownerAuthorized(request,env,publicKey,now);
  if(typeof env.ADMIN_KEY!=='string'||env.ADMIN_KEY.length<24)return false;
  const header=request.headers.get('authorization')??'';
  const provided=header.startsWith('Bearer ')?header.slice(7):'';
@@ -94,11 +115,11 @@ async function handle(request,env,publicKey) {
   return response({items:matches.slice(offset,offset+30),total:matches.length,next:offset+30<matches.length?offset+30:null});
  }
  if(path==='/api/health'&&request.method==='GET')return response({service:'idk plus',version:1});
- if(!env.DB)return response({error:'اربط قاعدة D1 باسم DB أولًا.'},503);
+ if(!env.DB)return response({code:'DB_NOT_BOUND',error:'باقي خطوة إعداد واحدة: اربط قاعدة بيانات المشتركين بالموقع باسم DB. هذا مو خطأ بملف المالك.'},503);
  const now=Math.floor(Date.now()/1000);
  if(path.startsWith('/api/admin/')) {
-  // Do not initialize anything until the admin secret is configured and verified.
-  if(!await authorized(request,env))throw new HttpError(401,'مفتاح الإدارة غير صحيح أو لم يُضبط بعد.');
+  // Authenticate owner-signed requests or the existing admin secret before setup.
+  if(!await authorized(request,env,publicKey,now))throw new HttpError(401,'تعذر التحقق من الدخول. اختر ملف المالك الصحيح، أو تحقق من مفتاح الإدارة وضبط وقت جهازك.');
   const origin=request.headers.get('origin');
   if(origin&&origin!==url.origin)throw new HttpError(403,'Origin not allowed');
   if(path==='/api/admin/setup'&&request.method==='POST') {
@@ -127,8 +148,10 @@ async function handle(request,env,publicKey) {
   if(deliveryMatch&&request.method==='POST') {
    const license=await env.DB.prepare('SELECT id,subject,expires FROM licenses WHERE id=?').bind(deliveryMatch[1]).first();
    if(!license||license.expires<=now)throw new HttpError(404,'الاشتراك غير موجود أو منتهي.');
+   const encryptionSecret=env.CERTIFICATE_KEY??env.ADMIN_KEY;
+   if(typeof encryptionSecret!=='string'||encryptionSecret.length<24)throw new HttpError(503,'إضافة الشهادات تحتاج إعداد مفتاح تشفير مرة واحدة: أضف Secret باسم CERTIFICATE_KEY في Cloudflare، بقيمة عشوائية لا تقل عن 24 خانة. إصدار الأكواد يعمل بدونه.');
    let sealed;
-   try {sealed=await sealCredential(await json(request,550000),env.CERTIFICATE_KEY??env.ADMIN_KEY,license.id+':'+license.subject);}catch(e){if(e instanceof HttpError)throw e;throw new HttpError(400,'تحقق من ملفات P12 وprovisioning وكلمة المرور وأحجامها.');}
+   try {sealed=await sealCredential(await json(request,550000),encryptionSecret,license.id+':'+license.subject);}catch(e){if(e instanceof HttpError)throw e;throw new HttpError(400,'تحقق من ملفات P12 وprovisioning وكلمة المرور وأحجامها.');}
    await env.DB.prepare('INSERT INTO credential_deliveries(license_id,iv,ciphertext,updated) VALUES(?,?,?,?) ON CONFLICT(license_id) DO UPDATE SET iv=excluded.iv,ciphertext=excluded.ciphertext,updated=excluded.updated').bind(license.id,sealed.iv,sealed.ciphertext,now).run();
    return response({ok:true});
   }
@@ -162,6 +185,6 @@ async function handle(request,env,publicKey) {
 }
 export function createWorker(publicKey=PUBLIC_KEY) { return {
  async fetch(request,env){try{return await handle(request,env,publicKey);}catch(e){return response({error:e instanceof HttpError?e.message:'الخدمة غير جاهزة. افتح اللوحة ونفّذ تهيئة قاعدة البيانات.'},e instanceof HttpError?e.status:503);}},
- async scheduled(_event,env){if(env.DB)await env.DB.prepare('DELETE FROM attempts WHERE window < ?').bind(Math.floor(Date.now()/60000)-60).run();}
+ async scheduled(_event,env){if(env.DB){await env.DB.prepare('DELETE FROM attempts WHERE window < ?').bind(Math.floor(Date.now()/60000)-60).run();await env.DB.prepare(nonceSchema).run();await env.DB.prepare('DELETE FROM admin_nonces WHERE expires < ?').bind(Math.floor(Date.now()/1000)).run();}}
 }; }
 export default createWorker();
