@@ -16,7 +16,7 @@ jobs:
         with:
           name: taif-plus-unsigned-IPA
           github-token: ${{ github.token }}
-          run-id: 40680886395
+          run-id: 40684849205
           path: release
       - name: Verify and name the public download
         run: |
@@ -24,19 +24,19 @@ jobs:
           from pathlib import Path
           import hashlib,zipfile,plistlib
           p=Path('release/taif-plus-unsigned.ipa')
-          assert hashlib.sha256(p.read_bytes()).hexdigest()=='b0ba92748dc2504007c4acaf00f5b24a1d4555917c7526e2d436ffa7f558c71b'
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='66c39a1198a9b10a40c7eba71112ae157e22a0317c8fbe50eec2530e8b5e36fe'
           with zipfile.ZipFile(p) as z:
               info=plistlib.loads(z.read('Payload/TAIFPlus.app/Info.plist'))
-              assert info['CFBundleIdentifier']=='app.taifplus.store' and info['CFBundleShortVersionString']=='1.1.0'
+              assert info['CFBundleIdentifier']=='app.taifplus.store' and info['CFBundleShortVersionString']=='1.2.0'
               assert not any(n.lower().endswith(('.pem','.p12','.mobileprovision')) for n in z.namelist())
-          p.rename('release/taif-plus-1.1.0-unsigned.ipa')
+          p.rename('release/taif-plus-1.2.0-unsigned.ipa')
           PY
       - name: Publish verified unsigned IPA
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view taif-v1.1.0 >/dev/null 2>&1; then
-            gh release view taif-v1.1.0 --json assets --jq '.assets[].name' | rg '^taif-plus-1.1.0-unsigned.ipa$'
+          if gh release view taif-v1.2.0 >/dev/null 2>&1; then
+            gh release view taif-v1.2.0 --json assets --jq '.assets[].name' | rg '^taif-plus-1.2.0-unsigned.ipa$'
           else
-            gh release create taif-v1.1.0 release/taif-plus-1.1.0-unsigned.ipa --target c44d25699cfe84016d506a9654218afe88e7f00f --title 'TAIF PLUS 1.1.0' --notes 'Unsigned IPA for iOS 15 and later. Sign with your own valid P12 and provisioning profile. Supports device-bound short activation codes. No signing certificate or owner private key is included.'
+            gh release create taif-v1.2.0 release/taif-plus-1.2.0-unsigned.ipa --target 0830b7b15552bf3a872d80099ac0707b4491f363 --title 'TAIF PLUS 1.2.0' --notes 'Unsigned IPA for iOS 15 and later. Sign with your own valid P12 and provisioning profile. Supports device-bound short activation codes. No signing certificate or owner private key is included.'
           fi

@@ -67,7 +67,7 @@ test('list pagination does not drop records sharing an issuance second',async()=
 test('panel is dependency-free and uses safe text nodes for subscriber data',()=>{assert.doesNotThrow(()=>new Function(javascript));assert.ok(javascript.includes('textContent=value'));assert.ok(!javascript.includes('innerHTML'));assert.ok(!javascript.includes('localStorage'));});
 test('subscriber website, owner panel, brand and script routes remain distinct',async()=>{
  const f=fixture();
- const home=await f.request('/');assert.equal(home.status,200);const body=await home.text();assert.ok(body.includes('كل جديد، <em>بطابعك.'));assert.ok(!body.includes('id="adminKey"'));assert.ok(body.includes('/admin'));assert.ok(body.includes('taif-plus-1.1.0-unsigned.ipa'));
+ const home=await f.request('/');assert.equal(home.status,200);const body=await home.text();assert.ok(body.includes('كل جديد، <em>بطابعك.'));assert.ok(!body.includes('id="adminKey"'));assert.ok(body.includes('/admin'));assert.ok(body.includes('taif-plus-1.2.0-unsigned.ipa'));
  const admin=await f.request('/admin');assert.equal(admin.status,200);assert.ok((await admin.text()).includes('id="adminKey"'));
  const icon=await f.request('/brand.jpg');assert.equal(icon.headers.get('content-type'),'image/jpeg');assert.equal((await icon.arrayBuffer()).byteLength,485755);
  assert.equal((await f.request('/site.js')).headers.get('content-type'),'application/javascript; charset=utf-8');
