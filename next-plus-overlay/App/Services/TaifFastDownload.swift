@@ -59,7 +59,8 @@ enum TaifFastDownload {
             defer { try? input.close() }
             guard try input.read(upToCount: 4) == Data([0x50, 0x4b, 0x03, 0x04]) else { return false }
             try Task.checkCancellation()
-            try FileManager.default.copyItem(at: cached, to: destination)
+            do { try FileManager.default.linkItem(at: cached, to: destination) }
+            catch { try FileManager.default.copyItem(at: cached, to: destination) }
             return true
         }).value) == true {
             try Task.checkCancellation()
@@ -146,7 +147,9 @@ enum TaifFastDownload {
                 }
                 if size <= maximumSize {
                     try? FileManager.default.removeItem(at: cached)
-                    try FileManager.default.copyItem(at: destination, to: cached)
+                    // The original archive is immutable throughout preflight/signing.
+                    // A same-volume link avoids copying a multi-GB IPA before signing.
+                    try FileManager.default.linkItem(at: destination, to: cached)
                 }
             } catch { /* Cache failure must never block an otherwise valid IPA. */ }
         }.value

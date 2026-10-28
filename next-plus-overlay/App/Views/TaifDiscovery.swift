@@ -16,6 +16,10 @@ struct TaifDiscovery: View {
     private let P = TaifPalette.accent
     @State private var featured = 0
 
+    private var highlights: [RepoApp] {
+        var seen = Set<String>()
+        return Array(apps.filter { seen.insert($0.name.lowercased()).inserted }.prefix(5))
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -62,16 +66,16 @@ struct TaifDiscovery: View {
                 Text("SWIPE TO EXPLORE").font(.system(size: 8, weight: .medium, design: .monospaced)).tracking(1.3).foregroundStyle(.secondary)
             }
             TabView(selection: $featured) {
-                ForEach(Array(apps.prefix(5).enumerated()), id: \.offset) { index, app in
+                ForEach(Array(highlights.enumerated()), id: \.offset) { index, app in
                     spotlight(app, index: index).tag(index)
                 }
             }.tabViewStyle(.page(indexDisplayMode: .never)).frame(height: 300)
             HStack(spacing: 5) {
-                ForEach(0..<min(5, apps.count), id: \.self) { index in
+                ForEach(0..<highlights.count, id: \.self) { index in
                     Capsule().fill(featured == index ? P : TaifPalette.line).frame(width: featured == index ? 25 : 5, height: 4)
                 }
                 Spacer()
-                Text(String(format: "%02d / %02d", featured + 1, min(5, apps.count))).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                Text(String(format: "%02d / %02d", featured + 1, highlights.count)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
             }
         }
     }
