@@ -27,7 +27,7 @@ function fixture(){
  return {db,request,env,worker};
 }
 test('12-character unbiased-format codes normalize without changing the taif prefix',()=>{
- const codes=new Set();for(let i=0;i<5000;i++){const c=newCode();assert.match(c,/^taif[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);assert.equal(c.length,12);assert.equal(normalizeCode(c.toLowerCase()),c);codes.add(c);}assert.equal(codes.size,5000);assert.equal(normalizeCode('taif../etc'),null);
+ const codes=new Set();for(let i=0;i<5000;i++){const c=newCode();assert.match(c,/^TAIF[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);assert.equal(c.length,12);assert.equal(normalizeCode(c.toLowerCase()),'taif'+c.slice(4));assert.equal(normalizeCode(c),'taif'+c.slice(4));codes.add(c);}assert.equal(codes.size,5000);assert.equal(normalizeCode('taif../etc'),null);
 });
 test('real Ed25519 verification rejects forged, expired, future and wrong-app payloads',async()=>{
  assert.ok(await verifyToken(await token(),now,publicKey));

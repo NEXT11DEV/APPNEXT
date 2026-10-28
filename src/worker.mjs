@@ -30,7 +30,7 @@ const decode = text => Uint8Array.from(atob(text.replaceAll('-','+').replaceAll(
 export const digest = async text => base64url(await crypto.subtle.digest('SHA-256', enc.encode(text)));
 export function newCode() {
  // Rejection sampling avoids modulo bias for the 31-character alphabet.
- let result='taif';
+ let result='TAIF';
  while(result.length<12) for(const b of crypto.getRandomValues(new Uint8Array(16))) {
   if(b<256-256%alphabet.length) result+=alphabet[b%alphabet.length];
   if(result.length===12)break;
@@ -225,7 +225,7 @@ async function handle(request,env,publicKey,passwordConfig) {
    const {token}=await json(request);const p=await verifyToken(token,now,publicKey);
    if(!p)throw new HttpError(400,'التفعيل الموقّع غير صحيح أو منتهي الصلاحية.');
    for(let attempt=0;attempt<4;attempt++) {
-    const code=newCode(),hash=await digest(code),id=crypto.randomUUID();
+    const code=newCode(),hash=await digest(normalizeCode(code)),id=crypto.randomUUID();
     try {
      await env.DB.batch([env.DB.prepare('INSERT INTO licenses(id,code_hash,suffix,subject,name,token,issued,expires) VALUES(?,?,?,?,?,?,?,?)').bind(id,hash,code.slice(-4),p.subject,p.name,token,now,p.expires),env.DB.prepare('INSERT INTO license_issuers(license_id,account_id) VALUES(?,?)').bind(id,actor.id)]);
      return response({code,id,subject:p.subject,name:p.name,expires:p.expires},201);
