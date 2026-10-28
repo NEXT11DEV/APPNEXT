@@ -265,8 +265,7 @@ struct NextWorkspace: View {
                 }.frame(width: 94, height: 120).accessibilityHidden(true)
             }
             HStack(alignment: .center) {
-                Text("تطبيقات تختارها.
-وتجربة على ذوقك.").font(.system(size: 12, weight: .medium)).lineSpacing(4).foregroundStyle(.secondary)
+                Text("تطبيقات تختارها.\nوتجربة على ذوقك.").font(.system(size: 12, weight: .medium)).lineSpacing(4).foregroundStyle(.secondary)
                 Spacer()
                 Button { showImporter = true; tab = 1 } label: {
                     HStack(spacing: 7) { Text("أضف IPA"); Image(systemName: "arrow.up.left") }
