@@ -19,7 +19,12 @@ struct TaifHome: View {
     let importIPA: () -> Void
     private var selections: [RepoApp] {
         var seen = Set<String>()
-        return Array(apps.lazy.filter { seen.insert($0.name.lowercased()).inserted }.prefix(12))
+        var selected: [RepoApp] = []
+        for app in apps {
+            if seen.insert(app.name.lowercased()).inserted { selected.append(app) }
+            if selected.count == 12 { break }
+        }
+        return selected
     }
     var body: some View {
         ScrollView {

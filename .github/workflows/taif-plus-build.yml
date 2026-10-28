@@ -123,10 +123,12 @@ jobs:
           xcrun simctl install "$DEVICE" build/sim/Build/Products/Debug-iphonesimulator/TAIFPlusUISim.app
           mkdir -p build/screenshots
           for TAB in 0 1 2 3; do
-            SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB="$TAB" xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
-            sleep 5
+            SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB="$TAB" xcrun simctl launch --console "$DEVICE" app.taifplus.store.uisim > "build/screenshots/console-$TAB.log" 2>&1 &
+            APP_CONSOLE=$!
+            sleep 10
             xcrun simctl io "$DEVICE" screenshot "build/screenshots/tab-$TAB.png"
-            xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim
+            xcrun simctl terminate "$DEVICE" app.taifplus.store.uisim || { cat "build/screenshots/console-$TAB.log"; xcrun simctl spawn "$DEVICE" log show --last 3m --style compact --predicate 'process == "TAIFPlusUISim"' | tail -100; exit 1; }
+            wait "$APP_CONSOLE" || true
           done
           SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_TAIF_UI_DETAILS=1 xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
           sleep 5
