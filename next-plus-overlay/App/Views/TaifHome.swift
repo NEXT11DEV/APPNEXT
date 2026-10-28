@@ -58,7 +58,7 @@ struct TaifHome: View {
         HStack(spacing: 11) {
             Button(action: openAccount) { Image("TAIFPlusIcon").resizable().frame(width: 41, height: 41).clipShape(RoundedRectangle(cornerRadius: 13)) }
             VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) { Text("TAIF").font(.system(size: 24, weight: .black, design: .rounded)); Text("PLUS").font(.system(size: 9, weight: .black)).foregroundStyle(TaifPalette.accent).tracking(1) }
+                HStack(alignment: .firstTextBaseline, spacing: 3) { Text("TAIF").font(.system(size: 24, weight: .black, design: .rounded)); Text("PLUS").font(.system(size: 9, weight: .black)).tracking(1).foregroundStyle(TaifPalette.accent) }
                 Text("هلا بيك، هاي مساحتك.").font(.system(size: 10)).foregroundStyle(.secondary)
             }
             Spacer()
