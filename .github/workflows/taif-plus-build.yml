@@ -71,6 +71,9 @@ jobs:
       - name: Check progress throttling and large catalog indexing
         working-directory: build-source
         run: python3 Tests/Performance/run.py
+      - name: Test real parallel downloads, fallback and cache
+        working-directory: build-source
+        run: python3 Tests/Downloads/run.py
       - name: Exercise native zsign bridge with disposable fixtures
         working-directory: build-source
         run: |

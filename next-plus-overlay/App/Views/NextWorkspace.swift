@@ -125,27 +125,27 @@ struct NextWorkspace: View {
     }
 
     private var bottomDock: some View {
-        HStack(spacing: 4) {
-            dockButton("المتجر", symbol: "square.grid.2x2.fill", value: 0)
-            dockButton("المكتبة", symbol: "square.stack.3d.up.fill", value: 1)
-            dockButton("الإعدادات", symbol: "slider.horizontal.3", value: 2)
+        HStack(spacing: 0) {
+            dockButton("اكتشف", symbol: "safari", value: 0)
+            dockButton("مساحتي", symbol: "square.stack.3d.up", value: 1)
+            dockButton("التحكم", symbol: "slider.horizontal.3", value: 2)
         }
-        .padding(6).frame(maxWidth: 340)
-        .background(NextStyle.card, in: RoundedRectangle(cornerRadius: 25))
-        .overlay(RoundedRectangle(cornerRadius: 25).stroke(TaifPalette.line, lineWidth: 1))
-        .shadow(color: .black.opacity(0.09), radius: 18, y: 5)
-        .padding(.horizontal, 24).padding(.top, 6).padding(.bottom, 8)
+        .padding(.horizontal, 18).padding(.top, 3).padding(.bottom, 4)
+        .background(NextStyle.page)
+        .overlay(alignment: .top) { Rectangle().fill(TaifPalette.line).frame(height: 1) }
     }
 
     private func dockButton(_ title: String, symbol: String, value: Int) -> some View {
         Button { tab = value } label: {
-            VStack(spacing: 4) {
-                Image(systemName: symbol).font(.system(size: 18, weight: .semibold))
-                Text(title).font(.system(size: 10, weight: .semibold))
+            VStack(spacing: 6) {
+                Capsule().fill(tab == value ? NextStyle.accent : .clear).frame(width: 22, height: 3)
+                HStack(spacing: 7) {
+                    Image(systemName: symbol).font(.system(size: 18, weight: .medium))
+                    Text(title).font(.system(size: 11, weight: .bold))
+                }.padding(.vertical, 10)
             }
             .foregroundStyle(tab == value ? NextStyle.accent : Color.secondary)
-            .frame(maxWidth: .infinity).padding(.vertical, 8)
-            .background(tab == value ? NextStyle.accent.opacity(0.11) : Color.clear, in: Capsule())
+            .frame(maxWidth: .infinity)
         }.buttonStyle(.plain).accessibilityAddTraits(tab == value ? .isSelected : [])
     }
 
@@ -182,7 +182,7 @@ struct NextWorkspace: View {
                         searchField
                         categoryPicker
                         HStack {
-                            Text(query.isEmpty ? "اختيارات تستاهل" : "نتائج البحث")
+                            Text(query.isEmpty ? "معرض التطبيقات" : "نتائج البحث")
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
                             Spacer()
                             Text(query.isEmpty ? "\(apps.count) / \(allApps.count)" : "\(apps.count) نتيجة\(hasMoreApps ? "+" : "")")
@@ -195,7 +195,7 @@ struct NextWorkspace: View {
                                 Text("جرّب اسمًا ثانيًا أو غيّر التصنيف.").font(.caption).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity).padding(24)
                         }
-                        LazyVStack(spacing: 12) {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                             ForEach(apps) { app in
                                 appCard(app).onAppear { if app.id == apps.last?.id { showMore() } }
                             }
@@ -227,74 +227,66 @@ struct NextWorkspace: View {
 
     private var storeToolbar: some View {
         HStack(spacing: 10) {
+            Image("TAIFPlusIcon").resizable().frame(width: 35, height: 35)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 2) {
-                Text("TAIF PLUS").font(.system(size: 22, weight: .semibold, design: .serif)).tracking(0.8)
-                Text("طابع مختلف. تجربة أرقى.").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                Text("TAIF").font(.system(size: 25, weight: .black, design: .serif)).tracking(4)
+                Text("THE PLUS EDITION").font(.system(size: 7, weight: .bold, design: .monospaced)).tracking(1.5).foregroundStyle(.secondary)
             }
             Spacer()
             TaifAppearanceMenu()
-            Button { Task { await refresh() } } label: {
-                Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .semibold)).frame(width: 32, height: 32)
-            }.accessibilityLabel("تحديث المكتبة").disabled(repositories.loadingRepoID != nil)
-            Button { showSources = true } label: {
-                Image(systemName: "plus").font(.system(size: 15, weight: .semibold)).frame(width: 32, height: 32)
-                    .background(NextStyle.card, in: Circle())
-            }.accessibilityLabel("إدارة المصادر")
-        }.frame(height: 42)
+            Menu {
+                Button { Task { await refresh() } } label: { Label("تحديث المكتبة", systemImage: "arrow.clockwise") }
+                Button { showSources = true } label: { Label("المصادر", systemImage: "shippingbox") }
+                Button { showImporter = true } label: { Label("إضافة IPA", systemImage: "plus.app") }
+            } label: {
+                Image(systemName: "plus").font(.system(size: 18, weight: .medium))
+                    .frame(width: 36, height: 36).background(TaifPalette.ink, in: Circle()).foregroundColor(NextStyle.page)
+            }.accessibilityLabel("إضافة وإدارة التطبيقات")
+        }.padding(.vertical, 8)
     }
 
     private var storeHero: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("TAIF / COLLECTION").font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2).foregroundColor(.white.opacity(0.65))
-                    Text("كل جديد،\nبطابعك.").font(.system(size: 32, weight: .bold, design: .rounded)).lineSpacing(0)
-                    Text("تطبيقات وألعاب تختارها بطريقتك").font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.75))
-                }
+        VStack(alignment: .leading, spacing: 17) {
+            HStack(spacing: 7) {
+                Capsule().fill(TaifPalette.accent).frame(width: 25, height: 3)
+                Text("اختياراتك تستحق مساحة مختلفة").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                VStack(alignment: .leading, spacing: -2) {
+                    Text("خارج").foregroundStyle(TaifPalette.ink)
+                    Text("المألوف.").foregroundStyle(TaifPalette.accent)
+                }.font(.system(size: 53, weight: .black, design: .rounded)).minimumScaleFactor(0.65)
                 Spacer(minLength: 0)
-                Image("TAIFPlusIcon").resizable().scaledToFit().frame(width: 82, height: 82)
-                    .clipShape(RoundedRectangle(cornerRadius: 21)).rotationEffect(.degrees(-6))
-                    .overlay(RoundedRectangle(cornerRadius: 21).stroke(.white.opacity(0.20), lineWidth: 1).rotationEffect(.degrees(-6)))
-            }
-            HStack {
-                Label("بشهادتك. على جهازك.", systemImage: "checkmark.shield.fill")
-                    .font(.system(size: 10, weight: .medium)).foregroundColor(.white.opacity(0.8))
-                Spacer()
-                Button { tab = 2 } label: {
-                    HStack(spacing: 5) { Text("ملفات التوقيع"); Image(systemName: "arrow.up.left") }
-                        .font(.system(size: 10, weight: .semibold)).padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(.white.opacity(0.12), in: Capsule())
-                }.buttonStyle(.plain)
-            }.padding(.top, 22)
-        }
-        .foregroundColor(.white).padding(22).frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            GeometryReader { geometry in
                 ZStack {
-                    TaifPalette.hero
-                    Ellipse().fill(.white.opacity(0.045)).frame(width: 390, height: 95).rotationEffect(.degrees(-28)).offset(x: -80, y: 110)
-                    Ellipse().stroke(.white.opacity(0.15), lineWidth: 0.7).frame(width: 410, height: 180).rotationEffect(.degrees(-28)).offset(x: -110, y: 120)
-                    Ellipse().stroke(TaifPalette.cherry.opacity(0.45), lineWidth: 8).frame(width: 420, height: 150).rotationEffect(.degrees(-28)).offset(x: -120, y: 120).blur(radius: 5)
-                }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                    RoundedRectangle(cornerRadius: 25).fill(TaifPalette.ruby).rotationEffect(.degrees(14)).frame(width: 75, height: 105)
+                    RoundedRectangle(cornerRadius: 23).fill(TaifPalette.ink).rotationEffect(.degrees(-9)).frame(width: 75, height: 105)
+                    Image(systemName: "sparkle").font(.system(size: 39, weight: .light)).foregroundColor(NextStyle.page).rotationEffect(.degrees(-9))
+                }.frame(width: 94, height: 120).accessibilityHidden(true)
             }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 25))
-        .shadow(color: TaifPalette.ruby.opacity(0.18), radius: 16, y: 8)
-        .overlay(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 2).fill(.white.opacity(0.22)).frame(width: 45, height: 2).padding(.bottom, 8)
-        }
+            HStack(alignment: .center) {
+                Text("تطبيقات تختارها.
+وتجربة على ذوقك.").font(.system(size: 12, weight: .medium)).lineSpacing(4).foregroundStyle(.secondary)
+                Spacer()
+                Button { showImporter = true; tab = 1 } label: {
+                    HStack(spacing: 7) { Text("أضف IPA"); Image(systemName: "arrow.up.left") }
+                        .font(.system(size: 11, weight: .bold)).padding(.horizontal, 16).padding(.vertical, 12)
+                        .foregroundColor(NextStyle.page).background(TaifPalette.ink, in: Capsule())
+                }.buttonStyle(.plain)
+            }
+            Rectangle().fill(TaifPalette.line).frame(height: 1)
+        }.padding(.top, 12).padding(.bottom, 2)
     }
 
     private var channelCard: some View {
         Link(destination: URL(string: "https://t.me/tife_store")!) {
             HStack(spacing: 10) {
-                Image(systemName: "paperplane.fill").font(.system(size: 14))
-                Text("التحديثات والتطوير").font(.system(size: 12, weight: .semibold))
+                Text("TAIF / LIVE").font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(1)
+                Circle().fill(TaifPalette.accent).frame(width: 5, height: 5)
                 Spacer()
-                Text("قناة TAIF").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                Text("جديد المتجر والتحديثات").font(.system(size: 10, weight: .semibold))
                 Image(systemName: "arrow.up.left").font(.system(size: 11, weight: .semibold))
-            }.foregroundStyle(TaifPalette.accent).padding(.horizontal, 15).padding(.vertical, 13)
-                .background(TaifPalette.inset, in: RoundedRectangle(cornerRadius: 15))
+            }.foregroundStyle(TaifPalette.accent).padding(.vertical, 4)
         }.buttonStyle(.plain)
     }
 
@@ -310,59 +302,55 @@ struct NextWorkspace: View {
     }
 
     private var categoryPicker: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 22) {
             ForEach(["الكل", "تطبيقات", "ألعاب"], id: \.self) { value in
                 Button { category = value } label: {
-                    Text(value).font(.system(size: 12, weight: .semibold))
-                        .frame(maxWidth: .infinity).padding(.vertical, 9)
-                        .foregroundStyle(category == value ? Color.white : Color.secondary)
-                        .background(category == value ? TaifPalette.ruby : Color.clear, in: Capsule())
+                    VStack(spacing: 8) {
+                        Text(value).font(.system(size: 13, weight: category == value ? .bold : .medium))
+                        Capsule().fill(category == value ? TaifPalette.accent : .clear).frame(height: 3)
+                    }.fixedSize(horizontal: true, vertical: false)
+                        .foregroundStyle(category == value ? TaifPalette.ink : .secondary)
                 }.buttonStyle(.plain)
             }
-        }.padding(4).background(TaifPalette.inset, in: Capsule())
+            Spacer()
+            Image(systemName: "square.grid.2x2").font(.system(size: 13)).foregroundStyle(.secondary)
+        }.padding(.top, 8)
     }
 
     private func appCard(_ app: RepoApp) -> some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             Button { selectedApp = app } label: {
-                HStack(spacing: 12) {
-                    CachedAppIcon(url: app.iconURL, size: 58, cornerRadius: 18)
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(app.name).font(.system(size: 15, weight: .bold)).foregroundStyle(.primary).lineLimit(1)
-                        HStack(spacing: 6) {
-                            Text(app.version.map { "v\($0)" } ?? "IPA")
-                            if let size = app.size, size > 0 {
-                                Circle().frame(width: 3, height: 3)
-                                Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                            }
-                        }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
-                        Text("عرض التفاصيل  ‹").font(.system(size: 9, weight: .semibold)).foregroundStyle(NextStyle.accent)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }.contentShape(Rectangle())
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top) {
+                        CachedAppIcon(url: app.iconURL, size: 63, cornerRadius: 18)
+                        Spacer(minLength: 2)
+                        Image(systemName: "arrow.up.left").font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary).padding(6)
+                    }
+                    Text(app.name).font(.system(size: 15, weight: .bold)).foregroundStyle(TaifPalette.ink)
+                        .lineLimit(2).frame(height: 38, alignment: .topLeading)
+                    Text((app.version.map { "v\($0)" } ?? "IPA") + (app.size.flatMap { $0 > 0 ? " · " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) : nil } ?? ""))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("تفاصيل \(app.name)")
-            VStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Button { signing.start(.repository(app)) } label: {
-                    HStack(spacing: 4) {
-                        if signing.busy && signing.title == app.name { ProgressView().tint(.white).scaleEffect(0.7) }
-                        else { Image(systemName: "arrow.down").font(.system(size: 9, weight: .bold)) }
-                        Text("تثبيت").font(.system(size: 11, weight: .bold))
-                    }.frame(width: 70, height: 32).foregroundColor(.white)
-                        .background(LinearGradient(colors: [NextStyle.accent, TaifPalette.ruby], startPoint: .trailing, endPoint: .leading), in: Capsule())
-                        .shadow(color: NextStyle.accent.opacity(0.20), radius: 7, y: 3)
+                    HStack(spacing: 5) {
+                        Text("تثبيت")
+                        Image(systemName: "arrow.down").font(.system(size: 9, weight: .bold))
+                    }.font(.system(size: 11, weight: .bold)).frame(maxWidth: .infinity).frame(height: 34)
+                        .foregroundColor(.white).background(TaifPalette.ruby, in: RoundedRectangle(cornerRadius: 11))
                 }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
                 Menu {
-                    Button { selectedApp = app } label: { Label("تفاصيل التطبيق", systemImage: "info.circle") }
-                    Button { signing.start(.repositoryCopy(app)) } label: { Label("تثبيت نسخة إضافية", systemImage: "square.on.square") }
+                    Button { selectedApp = app } label: { Label("التفاصيل والإصدارات", systemImage: "info.circle") }
+                    Button { signing.start(.repositoryCopy(app)) } label: { Label("إنشاء نسخة إضافية", systemImage: "square.on.square") }
                         .disabled(signing.busy || app.downloadURL == nil)
                 } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 15, weight: .bold))
-                        .foregroundColor(NextStyle.accent).frame(width: 70, height: 24).contentShape(Rectangle())
+                    Image(systemName: "ellipsis").font(.system(size: 14, weight: .bold))
+                        .frame(width: 25, height: 34).foregroundColor(TaifPalette.ink)
                 }.accessibilityLabel("خيارات \(app.name)")
             }
-        }
-        .padding(14).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(TaifPalette.line, lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.045), radius: 10, y: 4)
+        }.padding(14).background(TaifPalette.inset, in: RoundedRectangle(cornerRadius: 23))
     }
 
     private var library: some View {

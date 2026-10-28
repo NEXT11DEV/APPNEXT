@@ -80,15 +80,20 @@ final class NextSigningCoordinator: ObservableObject {
                     }
                     phase = .downloading; detail = "جاري تنزيل التطبيق…"; record("بدء تنزيل IPA")
                     let downloadStarted = ProcessInfo.processInfo.systemUptime
-                    let downloader = NextIPADownload()
-                    ipa = try await downloader.run(url: url, destination: work.appendingPathComponent("input.ipa")) { [weak self] value in
+                    ipa = try await TaifFastDownload.run(url: url, destination: work.appendingPathComponent("input.ipa"),
+                        cacheIdentity: (app.version ?? "") + ":" + String(app.size ?? 0), expectedSize: app.size, progress: { [weak self] value in
                         Task { @MainActor in
                             guard let self, self.operationID == currentOperation, self.phase == .downloading else { return }
                             self.transfer = value
                             self.progress = value.fraction
                             self.activity.progress(value)
                         }
-                    }
+                    }, route: { [weak self] message in
+                        Task { @MainActor in
+                            guard let self, self.operationID == currentOperation else { return }
+                            self.record(message)
+                        }
+                    })
                     let elapsed = max(ProcessInfo.processInfo.systemUptime - downloadStarted, 0.001)
                     let bytes = Int64((try? ipa.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
                     recordDuration("التنزيل", since: downloadStarted)

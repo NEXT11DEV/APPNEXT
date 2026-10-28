@@ -71,7 +71,7 @@ final class NextLicenseStore: ObservableObject {
         if value.hasPrefix("TAIF1.") { activate(value); return }
         guard value.count == 12, value.lowercased().hasPrefix("taif"),
               value.range(of: "^[tT][aA][iI][fF][23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz]{8}$", options: .regularExpression) != nil else {
-            message = "أدخل الكود كاملًا: 12 خانة تبدأ بـ taif."
+            message = "أدخل الكود كاملًا: 12 خانة تبدأ بـ TAIF."
             return
         }
         guard let origin = Bundle.main.object(forInfoDictionaryKey: "TAIFActivationURL") as? String,
