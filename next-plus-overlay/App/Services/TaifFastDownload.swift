@@ -44,7 +44,7 @@ enum TaifFastDownload {
         }
     }
 
-    static func run(url: URL, destination: URL, cacheIdentity: String, expectedSize: Int64? = nil,
+    static func run(url: URL, destination: URL, cacheIdentity: String, expectedSize: Int64? = nil, allowParallel: Bool = false,
                     progress: @escaping @Sendable (NextTransferSnapshot) -> Void,
                     route: @escaping @Sendable (String) -> Void) async throws -> URL {
         let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -80,7 +80,7 @@ enum TaifFastDownload {
         let probe = URLSession(configuration: config)
         defer { probe.invalidateAndCancel() }
         do {
-            guard (expectedSize ?? 0) >= 16 * 1024 * 1024 else { throw URLError(.unsupportedURL) }
+            guard allowParallel && (expectedSize ?? 0) >= 16 * 1024 * 1024 else { throw URLError(.unsupportedURL) }
             var head = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
             head.httpMethod = "HEAD"
             head.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
@@ -124,7 +124,7 @@ enum TaifFastDownload {
         } catch {
             try Task.checkCancellation()
             try? FileManager.default.removeItem(at: destination)
-            if (expectedSize ?? 0) >= 16 * 1024 * 1024 { route("المصدر لم يقبل الأجزاء بأمان؛ الرجوع لتنزيل مباشر") }
+            if allowParallel && (expectedSize ?? 0) >= 16 * 1024 * 1024 { route("المصدر لم يقبل الأجزاء بأمان؛ الرجوع لتنزيل مباشر") }
         }
         try Task.checkCancellation()
         if !usedParallel {

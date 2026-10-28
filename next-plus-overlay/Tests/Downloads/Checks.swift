@@ -28,7 +28,7 @@ private final class Samples: @unchecked Sendable {
             let meter = Samples()
             let target = root.appendingPathComponent(path + ".ipa")
             let result = try await TaifFastDownload.run(url: base.appendingPathComponent(path), destination: target,
-                cacheIdentity: identity, expectedSize: size, progress: { meter.append($0) }, route: { meter.append($0) })
+                cacheIdentity: identity, expectedSize: size, allowParallel: true, progress: { meter.append($0) }, route: { meter.append($0) })
             let actualHash = SHA256.hash(data: try Data(contentsOf: result))
             precondition(actualHash == hash, "Must never assemble corrupt or mixed data: " + path)
             precondition(meter.values.allSatisfy { $0.received >= 0 && $0.received <= size })
@@ -36,18 +36,21 @@ private final class Samples: @unchecked Sendable {
                 precondition(meter.routes.contains { $0.contains("4") })
                 let cached = root.appendingPathComponent("cached.ipa"), samples = Samples()
                 _ = try await TaifFastDownload.run(url: base.appendingPathComponent(path), destination: cached,
-                    cacheIdentity: identity, expectedSize: size, progress: { samples.append($0) }, route: { samples.append($0) })
+                    cacheIdentity: identity, expectedSize: size, allowParallel: true, progress: { samples.append($0) }, route: { samples.append($0) })
                 precondition(samples.routes.contains { $0.contains("بدون إعادة تنزيل") })
                 let cachedHash = SHA256.hash(data: try Data(contentsOf: cached))
                 precondition(cachedHash == hash)
             }
         }
+        let direct = try await TaifFastDownload.run(url: base.appendingPathComponent("immediate"), destination: root.appendingPathComponent("immediate.ipa"), cacheIdentity: identity, expectedSize: size, progress: { _ in }, route: { _ in })
+        let directHash = SHA256.hash(data: try Data(contentsOf: direct))
+        precondition(directHash == hash)
         do {
             _ = try await TaifFastDownload.run(url: base.appendingPathComponent("html"), destination: root.appendingPathComponent("bad.ipa"), cacheIdentity: identity, progress: { _ in }, route: { _ in })
             preconditionFailure("HTML must not be signed")
         } catch { }
         let task = Task {
-            try await TaifFastDownload.run(url: base.appendingPathComponent("slow"), destination: root.appendingPathComponent("slow.ipa"), cacheIdentity: identity, expectedSize: size, progress: { _ in }, route: { _ in })
+            try await TaifFastDownload.run(url: base.appendingPathComponent("slow"), destination: root.appendingPathComponent("slow.ipa"), cacheIdentity: identity, expectedSize: size, allowParallel: true, progress: { _ in }, route: { _ in })
         }
         try await Task.sleep(nanoseconds: 200_000_000)
         task.cancel()

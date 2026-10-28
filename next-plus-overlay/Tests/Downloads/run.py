@@ -5,6 +5,7 @@ counts={}
 class Handler(http.server.BaseHTTPRequestHandler):
  def log_message(self,*args): pass
  def do_HEAD(self):
+  counts["HEAD"+self.path]=counts.get("HEAD"+self.path,0)+1
   self.send_response(200);self.send_header('Content-Length',str(SIZE));self.send_header('ETag','"fixture-v1"')
   if self.path!='/ordinary':self.send_header('Accept-Ranges','bytes')
   self.end_headers()
@@ -36,5 +37,6 @@ try:
   assert counts['/parallel']==4,counts # second call must not contact server
   for path in ['/ignored','/changed','/truncated']:assert counts[path]>=5,counts
   assert counts['/ordinary']==1,counts
+  assert counts['/immediate']==1 and counts.get('HEAD/immediate',0)==0,counts
   print('PASS: request counts confirm four-part transport, fallback, single stream and cache hit',json.dumps(counts))
 finally:server.shutdown()

@@ -127,8 +127,12 @@ struct NextWorkspace: View {
     private var bottomDock: some View {
         HStack(spacing: 0) {
             dockButton("اكتشف", symbol: "safari", value: 0)
-            dockButton("مساحتي", symbol: "square.stack.3d.up", value: 1)
-            dockButton("التحكم", symbol: "slider.horizontal.3", value: 2)
+            dockButton("التنزيلات", symbol: "arrow.down.circle", value: 1)
+            Button { showImporter = true } label: {
+                Image(systemName: "plus").font(.system(size: 22, weight: .medium)).frame(width: 46, height: 46)
+                    .foregroundColor(.white).background(TaifPalette.ruby, in: Circle())
+            }.accessibilityLabel("استيراد IPA")
+            dockButton("حسابي", symbol: "person.crop.circle", value: 2)
         }
         .padding(.horizontal, 18).padding(.top, 3).padding(.bottom, 4)
         .background(NextStyle.page)
@@ -172,184 +176,19 @@ struct NextWorkspace: View {
     }
 
     private var store: some View {
-        NavigationView {
-            ScrollViewReader { scroll in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Color.clear.frame(height: 0).id("catalog-top")
-                        storeToolbar
-                        if query.isEmpty { storeHero; channelCard }
-                        searchField
-                        categoryPicker
-                        HStack {
-                            Text(query.isEmpty ? "معرض التطبيقات" : "نتائج البحث")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
-                            Spacer()
-                            Text(query.isEmpty ? "\(apps.count) / \(allApps.count)" : "\(apps.count) نتيجة\(hasMoreApps ? "+" : "")")
-                                .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
-                        }.padding(.top, 3)
-                        if apps.isEmpty {
-                            VStack(spacing: 9) {
-                                Image(systemName: "magnifyingglass").font(.title2).foregroundStyle(NextStyle.accent)
-                                Text(repositories.catalogCacheLoaded ? "ما لقينا نتائج" : "نجهّز مكتبتك…").font(.headline)
-                                Text("جرّب اسمًا ثانيًا أو غيّر التصنيف.").font(.caption).foregroundStyle(.secondary)
-                            }.frame(maxWidth: .infinity).padding(24)
-                        }
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                            ForEach(apps) { app in
-                                appCard(app).onAppear { if app.id == apps.last?.id { showMore() } }
-                            }
-                        }
-                        if hasMoreApps {
-                            Button("عرض ٣٠ تطبيق إضافي") { showMore() }
-                                .font(.system(size: 12, weight: .semibold)).frame(maxWidth: .infinity).padding(12)
-                        }
-                        if !repositories.fetchError.isEmpty {
-                            Text("تعذر تحديث بعض المصادر. حاول مرة ثانية.").font(.caption).foregroundStyle(.orange)
-                        }
-                    }.padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
-                }
-                .background(NextStyle.page).navigationBarHidden(true)
-                .onChange(of: query) { _ in scroll.scrollTo("catalog-top", anchor: .top) }
-                .onChange(of: category) { _ in scroll.scrollTo("catalog-top", anchor: .top) }
-                .refreshable { await refresh() }
-                .task {
-                    guard !refreshed else { return }; refreshed = true
-                    while !repositories.catalogCacheLoaded { try? await Task.sleep(nanoseconds: 20_000_000) }
-                    await refresh()
-                    #if DEBUG
-                    if ProcessInfo.processInfo.environment["TAIF_UI_DETAILS"] == "1", let first = allApps.first { selectedApp = first }
-                    #endif
-                }
-            }
+        TaifDiscovery(apps: apps, total: allApps.count, more: hasMoreApps, busy: signing.busy,
+            query: $query, category: $category,
+            details: { selectedApp = $0 }, install: { signing.start(.repository($0)) },
+            loadMore: { showMore() }, importIPA: { showImporter = true }, settings: { tab = 2 })
+        .refreshable { await refresh() }
+        .task {
+            guard !refreshed else { return }; refreshed = true
+            while !repositories.catalogCacheLoaded { try? await Task.sleep(nanoseconds: 20_000_000) }
+            await refresh()
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["TAIF_UI_DETAILS"] == "1", let first = allApps.first { selectedApp = first }
+            #endif
         }
-    }
-
-    private var storeToolbar: some View {
-        HStack(spacing: 10) {
-            Image("TAIFPlusIcon").resizable().frame(width: 35, height: 35)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("TAIF").font(.system(size: 25, weight: .black, design: .serif)).tracking(4)
-                Text("THE PLUS EDITION").font(.system(size: 7, weight: .bold, design: .monospaced)).tracking(1.5).foregroundStyle(.secondary)
-            }
-            Spacer()
-            TaifAppearanceMenu()
-            Menu {
-                Button { Task { await refresh() } } label: { Label("تحديث المكتبة", systemImage: "arrow.clockwise") }
-                Button { showSources = true } label: { Label("المصادر", systemImage: "shippingbox") }
-                Button { showImporter = true } label: { Label("إضافة IPA", systemImage: "plus.app") }
-            } label: {
-                Image(systemName: "plus").font(.system(size: 18, weight: .medium))
-                    .frame(width: 36, height: 36).background(TaifPalette.ink, in: Circle()).foregroundColor(NextStyle.page)
-            }.accessibilityLabel("إضافة وإدارة التطبيقات")
-        }.padding(.vertical, 8)
-    }
-
-    private var storeHero: some View {
-        VStack(alignment: .leading, spacing: 17) {
-            HStack(spacing: 7) {
-                Capsule().fill(TaifPalette.accent).frame(width: 25, height: 3)
-                Text("اختياراتك تستحق مساحة مختلفة").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-            }
-            HStack(alignment: .bottom, spacing: 8) {
-                VStack(alignment: .leading, spacing: -2) {
-                    Text("خارج").foregroundStyle(TaifPalette.ink)
-                    Text("المألوف.").foregroundStyle(TaifPalette.accent)
-                }.font(.system(size: 53, weight: .black, design: .rounded)).minimumScaleFactor(0.65)
-                Spacer(minLength: 0)
-                ZStack {
-                    RoundedRectangle(cornerRadius: 25).fill(TaifPalette.ruby).rotationEffect(.degrees(14)).frame(width: 75, height: 105)
-                    RoundedRectangle(cornerRadius: 23).fill(TaifPalette.ink).rotationEffect(.degrees(-9)).frame(width: 75, height: 105)
-                    Image(systemName: "sparkle").font(.system(size: 39, weight: .light)).foregroundColor(NextStyle.page).rotationEffect(.degrees(-9))
-                }.frame(width: 94, height: 120).accessibilityHidden(true)
-            }
-            HStack(alignment: .center) {
-                Text("تطبيقات تختارها.\nوتجربة على ذوقك.").font(.system(size: 12, weight: .medium)).lineSpacing(4).foregroundStyle(.secondary)
-                Spacer()
-                Button { showImporter = true; tab = 1 } label: {
-                    HStack(spacing: 7) { Text("أضف IPA"); Image(systemName: "arrow.up.left") }
-                        .font(.system(size: 11, weight: .bold)).padding(.horizontal, 16).padding(.vertical, 12)
-                        .foregroundColor(NextStyle.page).background(TaifPalette.ink, in: Capsule())
-                }.buttonStyle(.plain)
-            }
-            Rectangle().fill(TaifPalette.line).frame(height: 1)
-        }.padding(.top, 12).padding(.bottom, 2)
-    }
-
-    private var channelCard: some View {
-        Link(destination: URL(string: "https://t.me/tife_store")!) {
-            HStack(spacing: 10) {
-                Text("TAIF / LIVE").font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(1)
-                Circle().fill(TaifPalette.accent).frame(width: 5, height: 5)
-                Spacer()
-                Text("جديد المتجر والتحديثات").font(.system(size: 10, weight: .semibold))
-                Image(systemName: "arrow.up.left").font(.system(size: 11, weight: .semibold))
-            }.foregroundStyle(TaifPalette.accent).padding(.vertical, 4)
-        }.buttonStyle(.plain)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 9) {
-            Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .semibold)).foregroundStyle(NextStyle.accent)
-            TextField("ابحث باسم التطبيق", text: $query).font(.system(size: 14))
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-            if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) } }
-        }.padding(.horizontal, 13).frame(height: 43)
-            .background(NextStyle.card, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(NextStyle.accent.opacity(0.10), lineWidth: 1))
-    }
-
-    private var categoryPicker: some View {
-        HStack(spacing: 22) {
-            ForEach(["الكل", "تطبيقات", "ألعاب"], id: \.self) { value in
-                Button { category = value } label: {
-                    VStack(spacing: 8) {
-                        Text(value).font(.system(size: 13, weight: category == value ? .bold : .medium))
-                        Capsule().fill(category == value ? TaifPalette.accent : .clear).frame(height: 3)
-                    }.fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(category == value ? TaifPalette.ink : .secondary)
-                }.buttonStyle(.plain)
-            }
-            Spacer()
-            Image(systemName: "square.grid.2x2").font(.system(size: 13)).foregroundStyle(.secondary)
-        }.padding(.top, 8)
-    }
-
-    private func appCard(_ app: RepoApp) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button { selectedApp = app } label: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top) {
-                        CachedAppIcon(url: app.iconURL, size: 63, cornerRadius: 18)
-                        Spacer(minLength: 2)
-                        Image(systemName: "arrow.up.left").font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary).padding(6)
-                    }
-                    Text(app.name).font(.system(size: 15, weight: .bold)).foregroundStyle(TaifPalette.ink)
-                        .lineLimit(2).frame(height: 38, alignment: .topLeading)
-                    Text((app.version.map { "v\($0)" } ?? "IPA") + (app.size.flatMap { $0 > 0 ? " · " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) : nil } ?? ""))
-                        .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
-                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel("تفاصيل \(app.name)")
-            HStack(spacing: 8) {
-                Button { signing.start(.repository(app)) } label: {
-                    HStack(spacing: 5) {
-                        Text("تثبيت")
-                        Image(systemName: "arrow.down").font(.system(size: 9, weight: .bold))
-                    }.font(.system(size: 11, weight: .bold)).frame(maxWidth: .infinity).frame(height: 34)
-                        .foregroundColor(.white).background(TaifPalette.ruby, in: RoundedRectangle(cornerRadius: 11))
-                }.buttonStyle(.plain).disabled(signing.busy || app.downloadURL == nil)
-                Menu {
-                    Button { selectedApp = app } label: { Label("التفاصيل والإصدارات", systemImage: "info.circle") }
-                    Button { signing.start(.repositoryCopy(app)) } label: { Label("إنشاء نسخة إضافية", systemImage: "square.on.square") }
-                        .disabled(signing.busy || app.downloadURL == nil)
-                } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 14, weight: .bold))
-                        .frame(width: 25, height: 34).foregroundColor(TaifPalette.ink)
-                }.accessibilityLabel("خيارات \(app.name)")
-            }
-        }.padding(14).background(TaifPalette.inset, in: RoundedRectangle(cornerRadius: 23))
     }
 
     private var library: some View {
@@ -405,7 +244,7 @@ struct NextWorkspace: View {
                         }.padding(18).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
                     }
                 }.padding(20).padding(.bottom, 20)
-            }.background(NextStyle.page).navigationTitle("المكتبة")
+            }.background(NextStyle.page).navigationTitle("مركز التنزيل")
         }
     }
 

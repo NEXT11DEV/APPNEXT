@@ -12,19 +12,19 @@ struct NextAppDetails: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    HStack(alignment: .top, spacing: 16) {
-                        CachedAppIcon(url: app.iconURL, size: 82, cornerRadius: 22)
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text(app.name).font(.title2.bold())
-                            Text(app.developerName ?? "المطوّر غير مذكور بالمصدر").font(.subheadline).foregroundStyle(.secondary)
-                            Text(app.category ?? "تطبيق IPA").font(.caption).foregroundColor(accent)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    VStack(spacing: 20) {
+                        Text("TAIF / APP PROFILE").font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(2).foregroundColor(.white.opacity(0.5))
+                        CachedAppIcon(url: app.iconURL, size: 112, cornerRadius: 29)
+                            .shadow(color: .black.opacity(0.4), radius: 24, y: 16)
+                        Text(app.name).font(.system(size: 28, weight: .bold)).multilineTextAlignment(.center).foregroundColor(.white)
+                        Text(app.developerName ?? "من مكتبة TAIF").font(.system(size: 12)).foregroundColor(.white.opacity(0.65))
+                    }.frame(maxWidth: .infinity).padding(.vertical, 30).padding(.horizontal, 20)
+                        .background(TaifPalette.hero, in: RoundedRectangle(cornerRadius: 32))
                     HStack(spacing: 12) {
                         Button { install(app, false); dismiss() } label: {
                             Label("تثبيت التطبيق", systemImage: "arrow.down.circle.fill").frame(maxWidth: .infinity).padding(.vertical, 13)
                         }.buttonStyle(.borderedProminent).disabled(busy || app.downloadURL == nil)
-                        Button { install(app, true); dismiss() } label: { Label("تكرار", systemImage: "plus.square.on.square").padding(.vertical, 13) }
+                        Button { install(app, true); dismiss() } label: { Label("نسخة ثانية", systemImage: "plus.square.on.square").padding(.vertical, 13) }
                             .buttonStyle(.bordered).disabled(busy || app.downloadURL == nil)
                     }
                     HStack(alignment: .top, spacing: 8) {
