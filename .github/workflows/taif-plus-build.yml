@@ -43,6 +43,9 @@ jobs:
           subprocess.run(['sips','-s','format','png',str(jpeg),'--out',str(iconfile)],check=True)
           target=root/'App/Assets.xcassets/TAIFPlusIcon.imageset/TAIFPlusIcon.png'
           target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(iconfile.read_bytes())
+          hero=b''.join(p.read_bytes() for p in sorted(pathlib.Path('taif-art').glob('hero-*.part')))
+          assert hashlib.sha256(hero).hexdigest()=='a072c9420f43f1440a4a1a7f766ef2b938003d755b3eec0a381a3b7b67ca7f51'
+          (resources/'TaifEditorial.jpg').write_bytes(hero)
           import shutil
           shutil.rmtree(root/'App/Assets.xcassets/NextPlusIcon.imageset',ignore_errors=True)
           shutil.rmtree(root/'App/Assets.xcassets/IDKPlusIcon.imageset',ignore_errors=True)
@@ -119,7 +122,7 @@ jobs:
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl install "$DEVICE" build/sim/Build/Products/Debug-iphonesimulator/TAIFPlusUISim.app
           mkdir -p build/screenshots
-          for TAB in 0 1 2; do
+          for TAB in 0 1 2 3; do
             SIMCTL_CHILD_NEXT_UI_PREVIEW=1 SIMCTL_CHILD_NEXT_UI_TAB="$TAB" xcrun simctl launch "$DEVICE" app.taifplus.store.uisim
             sleep 5
             xcrun simctl io "$DEVICE" screenshot "build/screenshots/tab-$TAB.png"

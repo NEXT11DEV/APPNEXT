@@ -118,39 +118,38 @@ struct NextWorkspace: View {
 
     private var workspacePages: some View {
         ZStack {
-            store.opacity(tab == 0 ? 1 : 0).allowsHitTesting(tab == 0).accessibilityHidden(tab != 0)
+            home.opacity(tab == 0 ? 1 : 0).allowsHitTesting(tab == 0).accessibilityHidden(tab != 0)
+            store.opacity(tab == 3 ? 1 : 0).allowsHitTesting(tab == 3).accessibilityHidden(tab != 3)
             library.opacity(tab == 1 ? 1 : 0).allowsHitTesting(tab == 1).accessibilityHidden(tab != 1)
             settings.opacity(tab == 2 ? 1 : 0).allowsHitTesting(tab == 2).accessibilityHidden(tab != 2)
         }
     }
 
     private var bottomDock: some View {
-        HStack(spacing: 0) {
-            dockButton("اكتشف", symbol: "safari", value: 0)
-            dockButton("التنزيلات", symbol: "arrow.down.circle", value: 1)
-            Button { showImporter = true } label: {
-                Image(systemName: "plus").font(.system(size: 22, weight: .medium)).frame(width: 46, height: 46)
-                    .foregroundColor(.white).background(TaifPalette.ruby, in: Circle())
-            }.accessibilityLabel("استيراد IPA")
+        HStack(spacing: 3) {
+            dockButton("الرئيسية", symbol: "sparkles", value: 0)
+            dockButton("المتجر", symbol: "square.grid.2x2.fill", value: 3)
+            dockButton("ملفاتي", symbol: "folder.fill", value: 1)
             dockButton("حسابي", symbol: "person.crop.circle", value: 2)
-        }
-        .padding(.horizontal, 18).padding(.top, 3).padding(.bottom, 4)
-        .background(NextStyle.page)
-        .overlay(alignment: .top) { Rectangle().fill(TaifPalette.line).frame(height: 1) }
+        }.padding(7).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30))
+            .overlay(RoundedRectangle(cornerRadius: 30).stroke(TaifPalette.line.opacity(0.6), lineWidth: 0.7))
+            .shadow(color: .black.opacity(0.10), radius: 20, y: 6)
+            .padding(.horizontal, 18).padding(.top, 5).padding(.bottom, 5)
     }
-
     private func dockButton(_ title: String, symbol: String, value: Int) -> some View {
         Button { tab = value } label: {
             VStack(spacing: 6) {
-                Capsule().fill(tab == value ? NextStyle.accent : .clear).frame(width: 22, height: 3)
-                HStack(spacing: 7) {
-                    Image(systemName: symbol).font(.system(size: 18, weight: .medium))
-                    Text(title).font(.system(size: 11, weight: .bold))
-                }.padding(.vertical, 10)
-            }
-            .foregroundStyle(tab == value ? NextStyle.accent : Color.secondary)
-            .frame(maxWidth: .infinity)
+                Image(systemName: symbol).font(.system(size: 20, weight: .medium))
+                Text(title).font(.system(size: 9, weight: .medium))
+            }.frame(maxWidth: .infinity).padding(.vertical, 11)
+                .foregroundStyle(tab == value ? TaifPalette.accent : .secondary)
+                .background(tab == value ? TaifPalette.accent.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 24))
         }.buttonStyle(.plain).accessibilityAddTraits(tab == value ? .isSelected : [])
+    }
+    private var home: some View {
+        TaifHome(apps: allApps, total: allApps.count,
+            openCatalog: { category = $0; tab = 3 }, openDetails: { selectedApp = $0 },
+            openFiles: { tab = 1 }, openAccount: { tab = 2 }, importIPA: { showImporter = true })
     }
 
     @ViewBuilder private var transferBanner: some View {
@@ -176,10 +175,10 @@ struct NextWorkspace: View {
     }
 
     private var store: some View {
-        TaifDiscovery(apps: apps, total: allApps.count, more: hasMoreApps, busy: signing.busy,
+        TaifCatalog(apps: apps, total: allApps.count, more: hasMoreApps, busy: signing.busy,
             query: $query, category: $category,
             details: { selectedApp = $0 }, install: { signing.start(.repository($0)) },
-            loadMore: { showMore() }, importIPA: { showImporter = true }, settings: { tab = 2 })
+            duplicate: { signing.start(.repositoryCopy($0)) }, loadMore: { showMore() })
         .refreshable { await refresh() }
         .task {
             guard !refreshed else { return }; refreshed = true
@@ -195,16 +194,21 @@ struct NextWorkspace: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text("ملفاتي").font(.system(size: 31, weight: .bold))
+                            Text("من الملف إلى التطبيق.").font(.system(size: 12)).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("\(history.records.count)").font(.system(size: 36, weight: .ultraLight, design: .rounded)).foregroundStyle(NextStyle.accent)
+                    }
                     Button { showImporter = true } label: {
                         HStack(spacing: 14) {
-                            Image(systemName: "plus.app.fill").font(.largeTitle)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("استيراد ملف IPA").font(.headline)
-                                Text("من ملفات جهازك، ثم توقيعه بشهادتك").font(.caption)
-                            }
-                            Spacer(); Image(systemName: "plus")
-                        }.foregroundStyle(.white).padding(22)
-                            .background(LinearGradient(colors: [NextStyle.accent.opacity(0.8), NextStyle.accent], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 22))
+                            Image(systemName: "doc.badge.plus").font(.system(size: 28, weight: .light))
+                            VStack(alignment: .leading, spacing: 6) { Text("إضافة IPA").font(.system(size: 16, weight: .bold)); Text("اختر ملفك ووقّعه بشهادتك").font(.system(size: 11)).foregroundStyle(.secondary) }
+                            Spacer(); Image(systemName: "plus.circle.fill").font(.system(size: 24)).foregroundStyle(NextStyle.accent)
+                        }.foregroundStyle(TaifPalette.ink).padding(22).background(TaifPalette.card, in: RoundedRectangle(cornerRadius: 25))
+                            .overlay(RoundedRectangle(cornerRadius: 25).stroke(NextStyle.accent.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [5,5])))
                     }.buttonStyle(.plain).disabled(signing.busy)
                     if signing.phase != .idle { operationCard }
                     if !installer.installStatus.isEmpty {
@@ -244,7 +248,7 @@ struct NextWorkspace: View {
                         }.padding(18).background(NextStyle.card, in: RoundedRectangle(cornerRadius: 20))
                     }
                 }.padding(20).padding(.bottom, 20)
-            }.background(NextStyle.page).navigationTitle("مركز التنزيل")
+            }.background(NextStyle.page).navigationBarHidden(true)
         }
     }
 

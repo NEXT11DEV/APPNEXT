@@ -9,7 +9,7 @@ enum TaifPalette {
         })
     }
     static let accent = adaptive(0xB00926, 0xFF5367)
-    static let page = adaptive(0xFFFFFF, 0x0B0C10)
+    static let page = adaptive(0xF5F6FA, 0x0B0C10)
     static let card = adaptive(0xFFFFFF, 0x17181F)
     static let inset = adaptive(0xF7F7F9, 0x21222B)
     static let line = adaptive(0xE8E8ED, 0x30313B)
